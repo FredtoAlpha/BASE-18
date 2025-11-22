@@ -26,24 +26,11 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
   const ss = ctx.ss || SpreadsheetApp.getActive();
   const tolParite = ctx.tolParite || 2;
 
-  // ========== CONSOLIDER DONNÉES ==========
-  const allData = [];
-  let headersRef = null;
-
-  (ctx.cacheSheets || []).forEach(function(testName) {
-    const testSheet = ss.getSheetByName(testName);
-    if (!testSheet || testSheet.getLastRow() <= 1) return;
-
-    const data = testSheet.getDataRange().getValues();
-    if (!headersRef) headersRef = data[0];
-
-    for (let i = 1; i < data.length; i++) {
-      allData.push({
-        sheetName: testName,
-        row: data[i]
-      });
-    }
-  });
+  // ========== CONSOLIDER DONNÉES (SAC DE BILLES) ==========
+  // 🎯 Fusionner TEST (déjà placés) + SOURCE (encore dans le sac)
+  const consolidated = getConsolidatedData_LEGACY(ctx);
+  const allData = consolidated.allData;
+  const headersRef = consolidated.headersRef;
 
   if (allData.length === 0) {
     return { ok: false, message: 'Aucun élève trouvé' };
@@ -54,6 +41,30 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
   const idxNom = headersRef.indexOf('NOM');
   const idxLV2 = headersRef.indexOf('LV2');
   const idxOPT = headersRef.indexOf('OPT');
+  
+  // 🌟 APPROCHE UNIVERSELLE : Détecter LV2 universelles
+  const allClasses = ctx.niveaux || [];
+  const nbClasses = allClasses.length;
+  const lv2Counts = {};
+  
+  for (const classe in (ctx.quotas || {})) {
+    const quotas = ctx.quotas[classe];
+    for (const optName in quotas) {
+      if (['ITA', 'ESP', 'ALL', 'PT'].indexOf(optName) >= 0 && quotas[optName] > 0) {
+        lv2Counts[optName] = (lv2Counts[optName] || 0) + 1;
+      }
+    }
+  }
+  
+  const lv2Universelles = [];
+  for (const lv2 in lv2Counts) {
+    if (lv2Counts[lv2] === nbClasses) {
+      lv2Universelles.push(lv2);
+    }
+  }
+  
+  // Ajouter au contexte pour accès dans les fonctions
+  ctx.lv2Universelles = lv2Universelles;
 
   // ========== RÉÉQUILIBRAGE EFFECTIFS (BUG #3 CORRECTION) ==========
   logLine('INFO', '📊 Rééquilibrage des effectifs...');
@@ -138,15 +149,52 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
   
   logLine('INFO', '  ✅ ' + moved + ' élèves rééquilibrés');
 
-  // ========== PLACER ÉLÈVES NON ASSIGNÉS ==========
+  // ========== PLACER ÉLÈVES NON ASSIGNÉS (ESP par défaut) ==========
   let placed = 0;
   for (let i = 0; i < allData.length; i++) {
     const item = allData[i];
     if (String(item.row[idxAssigned] || '').trim()) continue;
 
-    // Trouver classe la moins remplie
-    const targetClass = findLeastPopulatedClass_Phase3(allData, headersRef, ctx);
+    // ✅ Trouver classe compatible avec LV2/OPT de l'élève
+    const lv2 = String(item.row[idxLV2] || '').trim().toUpperCase();
+    const opt = String(item.row[idxOPT] || '').trim().toUpperCase();
+    
+    let targetClass = null;
+    
+    // Trouver la classe la moins remplie qui propose cette LV2/OPT
+    for (const cls in (ctx.targets || {})) {
+      const quotas = (ctx.quotas && ctx.quotas[cls]) || {};
+      const current = classCounts[cls] || 0;
+      const target = ctx.targets[cls] || 27;
+      
+      // Vérifier qu'il reste de la place
+      if (current >= target) continue;
+      
+      // Vérifier compatibilité LV2 (LV2 universelles toujours compatibles)
+      let compatible = true;
+      if (lv2 && lv2Universelles.indexOf(lv2) === -1 && ['ITA', 'ESP', 'ALL', 'PT'].indexOf(lv2) >= 0) {
+        if (!quotas[lv2] || quotas[lv2] <= 0) compatible = false;
+      }
+      
+      // Vérifier compatibilité OPT
+      if (opt && ['CHAV', 'LATIN', 'GREC'].indexOf(opt) >= 0) {
+        if (!quotas[opt] || quotas[opt] <= 0) compatible = false;
+      }
+      
+      if (compatible) {
+        if (!targetClass || current < (classCounts[targetClass] || 0)) {
+          targetClass = cls;
+        }
+      }
+    }
+    
+    if (!targetClass) {
+      // Fallback : classe la moins remplie (ignorant quotas)
+      targetClass = findLeastPopulatedClass_Phase3(allData, headersRef, ctx);
+    }
+    
     item.row[idxAssigned] = targetClass;
+    classCounts[targetClass] = (classCounts[targetClass] || 0) + 1;
     placed++;
   }
 
@@ -201,8 +249,17 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
             const cls = String(allData[i].row[idxAssigned] || '').trim();
             const sexe = String(allData[i].row[idxSexe] || '').toUpperCase();
 
-            if (cls === cls1 && sexe === sexeNeeded2 && idx1 === -1) idx1 = i;
-            if (cls === cls2 && sexe === sexeNeeded1 && idx2 === -1) idx2 = i;
+            // ✅ FAILLE #2 CORRECTION : Vérifier éligibilité AVANT sélection
+            if (cls === cls1 && sexe === sexeNeeded2 && idx1 === -1) {
+              if (canSwapForParity_Phase3(i, cls2, allData, headersRef, ctx)) {
+                idx1 = i;
+              }
+            }
+            if (cls === cls2 && sexe === sexeNeeded1 && idx2 === -1) {
+              if (canSwapForParity_Phase3(i, cls1, allData, headersRef, ctx)) {
+                idx2 = i;
+              }
+            }
           }
 
           if (idx1 >= 0 && idx2 >= 0) {
@@ -289,4 +346,70 @@ function findLeastPopulatedClass_Phase3(allData, headers, ctx) {
   }
 
   return minClass || (ctx.niveaux && ctx.niveaux[0]) || '6°1';
+}
+
+/**
+ * ✅ FAILLE #2 CORRECTION : Vérifie si un élève peut être swappé vers une classe
+ * sans violer les contraintes FIXE/Options/DISSO
+ */
+function canSwapForParity_Phase3(studentIdx, targetClass, allData, headers, ctx) {
+  const student = allData[studentIdx];
+  const row = student.row;
+  
+  // Index des colonnes
+  const idxLV2 = headers.indexOf('LV2');
+  const idxOPT = headers.indexOf('OPT');
+  const idxFIXE = headers.indexOf('FIXE');
+  const idxMOBILITE = headers.indexOf('MOBILITE');
+  const idxDISSO = headers.indexOf('DISSO');
+  
+  // 1. Vérifier si élève est FIXE
+  const fixe = String(row[idxFIXE] || '').toUpperCase();
+  const mobilite = String(row[idxMOBILITE] || '').toUpperCase();
+  
+  if (fixe.includes('FIXE') || fixe.includes('OUI') || mobilite.includes('FIXE')) {
+    return false; // Élève FIXE ne peut pas être swappé
+  }
+  
+  // 2. Vérifier compatibilité LV2/OPT avec la classe cible
+  const lv2 = String(row[idxLV2] || '').trim().toUpperCase();
+  const opt = String(row[idxOPT] || '').trim().toUpperCase();
+  
+  if (lv2 || opt) {
+    const quotas = (ctx && ctx.quotas && ctx.quotas[targetClass]) || {};
+    const lv2Universelles = (ctx && ctx.lv2Universelles) || [];
+    
+    // Vérifier si la classe cible propose cette option (LV2 universelles toujours OK)
+    if (lv2 && lv2Universelles.indexOf(lv2) === -1 && ['ITA', 'ESP', 'ALL', 'PT'].indexOf(lv2) >= 0) {
+      if (!quotas[lv2] || quotas[lv2] <= 0) {
+        return false; // Classe cible ne propose pas cette LV2
+      }
+    }
+    
+    if (opt && ['CHAV', 'LATIN'].indexOf(opt) >= 0) {
+      if (!quotas[opt] || quotas[opt] <= 0) {
+        return false; // Classe cible ne propose pas cette option
+      }
+    }
+  }
+  
+  // 3. Vérifier conflits DISSO dans la classe cible
+  const disso = String(row[idxDISSO] || '').trim().toUpperCase();
+  const idxAssigned = headers.indexOf('_CLASS_ASSIGNED');
+  
+  if (disso) {
+    for (let i = 0; i < allData.length; i++) {
+      if (i === studentIdx) continue;
+      
+      const otherClass = String(allData[i].row[idxAssigned] || '').trim();
+      if (otherClass !== targetClass) continue;
+      
+      const otherDisso = String(allData[i].row[idxDISSO] || '').trim().toUpperCase();
+      if (otherDisso === disso) {
+        return false; // Conflit DISSO dans la classe cible
+      }
+    }
+  }
+  
+  return true; // Swap autorisé
 }

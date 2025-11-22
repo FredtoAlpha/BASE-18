@@ -131,23 +131,49 @@ function writeTestHeaders_LEGACY(ctx, targetSheet, testName) {
 }
 
 /**
- * S'assure que la colonne _CLASS_ASSIGNED existe dans l'onglet TEST
+ * S'assure que les colonnes FIXE, MOBILITE et _CLASS_ASSIGNED existent
+ * Structure alignée avec pipeline OPTI :
+ *   P: FIXE
+ *   Q: MOBILITE
+ *   R: _CLASS_ASSIGNED
  *
  * @param {Sheet} sheet - Onglet TEST
  * @param {Array} headers - En-têtes actuels
  */
 function ensureClassAssignedColumn_LEGACY(sheet, headers) {
+  const idxFIXE = headers.indexOf('FIXE');
+  const idxMOBILITE = headers.indexOf('MOBILITE');
   const idxAssigned = headers.indexOf('_CLASS_ASSIGNED');
-
+  
+  let currentCol = headers.length + 1;
+  
+  // ✅ Ajouter FIXE si absente (colonne P)
+  if (idxFIXE === -1) {
+    sheet.getRange(1, currentCol).setValue('FIXE');
+    sheet.getRange(1, currentCol)
+      .setFontWeight('bold')
+      .setBackground('#FFA500'); // Orange
+    logLine('INFO', '    ✅ Colonne FIXE ajoutée (colonne ' + currentCol + ')');
+    currentCol++;
+  }
+  
+  // ✅ Ajouter MOBILITE si absente (colonne Q)
+  if (idxMOBILITE === -1) {
+    sheet.getRange(1, currentCol).setValue('MOBILITE');
+    sheet.getRange(1, currentCol)
+      .setFontWeight('bold')
+      .setBackground('#ADD8E6'); // Bleu clair
+    logLine('INFO', '    ✅ Colonne MOBILITE ajoutée (colonne ' + currentCol + ')');
+    currentCol++;
+  }
+  
+  // ✅ Ajouter _CLASS_ASSIGNED si absente (colonne R)
   if (idxAssigned === -1) {
-    // ✅ Ajouter la colonne _CLASS_ASSIGNED à la fin
-    const newCol = headers.length + 1;
-    sheet.getRange(1, newCol).setValue('_CLASS_ASSIGNED');
-    sheet.getRange(1, newCol)
+    sheet.getRange(1, currentCol).setValue('_CLASS_ASSIGNED');
+    sheet.getRange(1, currentCol)
       .setFontWeight('bold')
       .setBackground('#FFD966'); // Jaune
-
-    logLine('INFO', '    ✅ Colonne _CLASS_ASSIGNED ajoutée (colonne ' + newCol + ')');
+    logLine('INFO', '    ✅ Colonne _CLASS_ASSIGNED ajoutée (colonne ' + currentCol + ')');
   }
 }
 

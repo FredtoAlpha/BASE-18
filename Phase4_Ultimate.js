@@ -188,6 +188,11 @@ function findBestSwapBetween_Ultimate(cls1Name, cls2Name, allData, byClass, head
       const s2 = allData[i2];
       if (isFixed(s2)) continue;
 
+      // ✅ BUG #5 CORRECTION : Vérifier compatibilité LV2/OPT AVANT swap
+      if (!canSwapStudents_Ultimate(i1, i2, cls1Name, cls2Name, idxList1, idxList2, allData, headers, ctx)) {
+        continue; // Swap interdit par contraintes LV2/OPT/DISSO
+      }
+
       // Simulation du swap
       const tempList1 = idxList1.filter(idx => idx !== i1).concat([i2]);
       const tempList2 = idxList2.filter(idx => idx !== i2).concat([i1]);
@@ -222,6 +227,29 @@ function loadAndClassifyData_Ultimate(ctx) {
   const allData = [];
   const byClass = {};
   let headersRef = null;
+  
+  // 🌟 APPROCHE UNIVERSELLE : Détecter LV2 universelles
+  const nbClasses = (ctx.niveaux || []).length;
+  const lv2Counts = {};
+  
+  for (const classe in (ctx.quotas || {})) {
+    const quotas = ctx.quotas[classe];
+    for (const optName in quotas) {
+      if (['ITA', 'ESP', 'ALL', 'PT'].indexOf(optName) >= 0 && quotas[optName] > 0) {
+        lv2Counts[optName] = (lv2Counts[optName] || 0) + 1;
+      }
+    }
+  }
+  
+  const lv2Universelles = [];
+  for (const lv2 in lv2Counts) {
+    if (lv2Counts[lv2] === nbClasses) {
+      lv2Universelles.push(lv2);
+    }
+  }
+  
+  // Ajouter au contexte
+  ctx.lv2Universelles = lv2Universelles;
 
   // ✅ CORRECTION CRITIQUE : Lire UNIQUEMENT depuis les onglets TEST
   //    qui contiennent le résultat des Phases 1-2-3, PAS depuis les sources
@@ -328,6 +356,92 @@ function findPartnerClass_Ultimate(worstClass, byClass, allData, globalStats) {
 function isFixed(student) {
   const mob = student.mobilite;
   return mob.includes('FIXE') || mob.includes('NON');
+}
+
+/**
+ * ✅ BUG #5 CORRECTION : Vérifie si un swap respecte les contraintes LV2/OPT/DISSO
+ */
+function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxList2, allData, headers, ctx) {
+  const s1 = allData[idx1];
+  const s2 = allData[idx2];
+  
+  // Extraire LV2/OPT des élèves
+  const idxLV2 = headers.indexOf('LV2');
+  const idxOPT = headers.indexOf('OPT');
+  const idxDISSO = headers.indexOf('DISSO');
+  
+  const lv2_s1 = String(s1.row[idxLV2] || '').trim().toUpperCase();
+  const opt_s1 = String(s1.row[idxOPT] || '').trim().toUpperCase();
+  const lv2_s2 = String(s2.row[idxLV2] || '').trim().toUpperCase();
+  const opt_s2 = String(s2.row[idxOPT] || '').trim().toUpperCase();
+  const disso_s1 = String(s1.row[idxDISSO] || '').trim().toUpperCase();
+  const disso_s2 = String(s2.row[idxDISSO] || '').trim().toUpperCase();
+
+  // Vérifier si s2 peut aller dans cls1
+  const quotas1 = (ctx && ctx.quotas && ctx.quotas[cls1Name]) || {};
+  const lv2Universelles = (ctx && ctx.lv2Universelles) || [];
+  
+  // ✅ BUG CRITIQUE CORRIGÉ : Vérifier LV2 ET OPT séparément (pas else if)
+  // Un élève peut avoir LV2=ESP + OPT=CHAV en même temps !
+  
+  // Vérifier LV2 (LV2 universelles toujours compatibles)
+  if (lv2_s2 && lv2Universelles.indexOf(lv2_s2) === -1 && ['ITA', 'ESP', 'ALL', 'PT'].indexOf(lv2_s2) >= 0) {
+    if (!quotas1[lv2_s2] || quotas1[lv2_s2] <= 0) {
+      return false; // Classe cible ne propose pas cette LV2
+    }
+  }
+  
+  // Vérifier OPT (indépendamment de LV2)
+  if (opt_s2 && ['CHAV', 'LATIN'].indexOf(opt_s2) >= 0) {
+    if (!quotas1[opt_s2] || quotas1[opt_s2] <= 0) {
+      return false; // Classe cible ne propose pas cette option
+    }
+  }
+  
+  // Vérifier si s1 peut aller dans cls2
+  const quotas2 = (ctx && ctx.quotas && ctx.quotas[cls2Name]) || {};
+  
+  // Vérifier LV2 (LV2 universelles toujours compatibles)
+  if (lv2_s1 && lv2Universelles.indexOf(lv2_s1) === -1 && ['ITA', 'ESP', 'ALL', 'PT'].indexOf(lv2_s1) >= 0) {
+    if (!quotas2[lv2_s1] || quotas2[lv2_s1] <= 0) {
+      return false; // Classe cible ne propose pas cette LV2
+    }
+  }
+  
+  // Vérifier OPT (indépendamment de LV2)
+  if (opt_s1 && ['CHAV', 'LATIN'].indexOf(opt_s1) >= 0) {
+    if (!quotas2[opt_s1] || quotas2[opt_s1] <= 0) {
+      return false; // Classe cible ne propose pas cette option
+    }
+  }
+  
+  // Vérifier DISSO : s1 ne doit pas avoir le même code DISSO qu'un élève de cls2 (après swap)
+  if (disso_s1) {
+    for (let i = 0; i < idxList2.length; i++) {
+      const idx = idxList2[i];
+      if (idx === idx2) continue; // s2 sera swappé donc ne compte pas
+      const otherStudent = allData[idx];
+      const otherDisso = String(otherStudent.row[idxDISSO] || '').trim().toUpperCase();
+      if (otherDisso && otherDisso === disso_s1) {
+        return false; // Conflit DISSO
+      }
+    }
+  }
+  
+  // Vérifier DISSO : s2 ne doit pas avoir le même code DISSO qu'un élève de cls1 (après swap)
+  if (disso_s2) {
+    for (let i = 0; i < idxList1.length; i++) {
+      const idx = idxList1[i];
+      if (idx === idx1) continue; // s1 sera swappé donc ne compte pas
+      const otherStudent = allData[idx];
+      const otherDisso = String(otherStudent.row[idxDISSO] || '').trim().toUpperCase();
+      if (otherDisso && otherDisso === disso_s2) {
+        return false; // Conflit DISSO
+      }
+    }
+  }
+  
+  return true; // Swap autorisé
 }
 
 /**
