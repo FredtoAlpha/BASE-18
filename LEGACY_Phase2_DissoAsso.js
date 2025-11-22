@@ -30,40 +30,27 @@ function Phase2I_applyDissoAsso_LEGACY(ctx) {
 
   const ss = ctx.ss || SpreadsheetApp.getActive();
 
-  // ========== ÉTAPE 1 : CONSOLIDER DONNÉES DE TOUS LES ONGLETS TEST ==========
-  logLine('INFO', '📋 Consolidation des onglets TEST : ' + (ctx.cacheSheets || []).join(', '));
+  // ========== ÉTAPE 1 : CONSOLIDER DONNÉES (SAC DE BILLES) ==========
+  // 🎯 Fusionner TEST (déjà placés) + SOURCE (encore dans le sac)
+  logLine('INFO', '📋 Consolidation SAC DE BILLES (TEST + SOURCE)');
 
-  const allData = [];
-  let headersRef = null;
-
-  (ctx.cacheSheets || []).forEach(function(testName) {
-    const testSheet = ss.getSheetByName(testName);
-    if (!testSheet || testSheet.getLastRow() <= 1) {
-      logLine('WARN', '⚠️ ' + testName + ' vide ou introuvable, skip');
-      return;
-    }
-
-    const data = testSheet.getDataRange().getValues();
-    const headers = data[0];
-
-    if (!headersRef) {
-      headersRef = headers;
-    }
-
-    // Ajouter les élèves avec métadonnées
-    for (let i = 1; i < data.length; i++) {
-      allData.push({
-        sheetName: testName,
-        rowIndex: i,
-        row: data[i],
-        headers: headers
-      });
-    }
-  });
-
+  const consolidated = getConsolidatedData_LEGACY(ctx);
+  const allData = consolidated.allData;
+  const headersRef = consolidated.headersRef;
+  
   if (allData.length === 0) {
-    logLine('WARN', '⚠️ Aucun élève trouvé dans les onglets TEST');
-    return { ok: false, asso: 0, disso: 0 };
+    logLine('WARN', '⚠️ Aucun élève trouvé');
+    return { ok: true, asso: 0, disso: 0 };
+  }
+  
+  // Ajouter métadonnées manquantes pour compatibilité
+  for (let i = 0; i < allData.length; i++) {
+    if (!allData[i].headers) {
+      allData[i].headers = headersRef;
+    }
+    if (allData[i].rowIndex === undefined) {
+      allData[i].rowIndex = i + 1;
+    }
   }
 
   logLine('INFO', '  ✅ ' + allData.length + ' élèves consolidés');
@@ -74,6 +61,8 @@ function Phase2I_applyDissoAsso_LEGACY(ctx) {
   const idxAssigned = headersRef.indexOf('_CLASS_ASSIGNED');
   const idxNom = headersRef.indexOf('NOM');
   const idxPrenom = headersRef.indexOf('PRENOM');
+  const idxFIXE = headersRef.indexOf('FIXE');
+  const idxMOBILITE = headersRef.indexOf('MOBILITE');
 
   if (idxAssigned === -1) {
     throw new Error('Colonne _CLASS_ASSIGNED manquante');
@@ -129,10 +118,21 @@ function Phase2I_applyDissoAsso_LEGACY(ctx) {
 
     logLine('INFO', '    🎯 Cible : ' + targetClass);
 
-    // Déplacer tous vers la cible
+    // Déplacer tous vers la cible (sauf élèves FIXE)
     indices.forEach(function(i) {
       const item = allData[i];
       const currentClass = String(item.row[idxAssigned] || '').trim();
+      
+      // ✅ RESPECT COLONNE P : Ne pas déplacer les élèves FIXE ou GROUPE_FIXE
+      const fixe = String(item.row[idxFIXE] || '').trim().toUpperCase();
+      const mobilite = String(item.row[idxMOBILITE] || '').trim().toUpperCase();
+      
+      if (fixe === 'OUI' || mobilite === 'FIXE' || mobilite === 'GROUPE_FIXE') {
+        const nom = String(item.row[idxNom] || '');
+        logLine('WARN', '      ⚠️ ' + nom + ' est FIXE, ne peut être déplacé pour ASSO');
+        return; // Skip cet élève
+      }
+      
       if (currentClass !== targetClass) {
         item.row[idxAssigned] = targetClass;
         assoMoved++;
@@ -182,6 +182,16 @@ function Phase2I_applyDissoAsso_LEGACY(ctx) {
         for (let j = 1; j < byClass[cls].length; j++) {
           const i = byClass[cls][j];
           const item = allData[i];
+          
+          // ✅ RESPECT COLONNE P : Ne pas déplacer les élèves FIXE
+          const fixe = String(item.row[idxFIXE] || '').trim().toUpperCase();
+          const mobilite = String(item.row[idxMOBILITE] || '').trim().toUpperCase();
+          const nom = String(item.row[idxNom] || '');
+          
+          if (fixe === 'OUI' || mobilite === 'FIXE' || mobilite === 'GROUPE_FIXE') {
+            logLine('WARN', '      ⚠️ ' + nom + ' est FIXE, ne peut être déplacé pour DISSO (conflit accepté)');
+            continue; // Skip cet élève
+          }
 
           // 🔒 Trouver classe sans ce code D
           const targetClass = findClassWithoutCodeD_LEGACY(allData, headersRef, code, groupsD[code], i, ctx);
@@ -189,11 +199,9 @@ function Phase2I_applyDissoAsso_LEGACY(ctx) {
           if (targetClass) {
             item.row[idxAssigned] = targetClass;
 
-            const nom = String(item.row[idxNom] || '');
             const prenom = String(item.row[idxPrenom] || '');
             logLine('INFO', '      ✅ ' + nom + ' ' + prenom + ' : ' + cls + ' → ' + targetClass + ' (séparation D=' + code + ')');
           } else {
-            const nom = String(item.row[idxNom] || '');
             logLine('WARN', '      ⚠️ ' + nom + ' reste en ' + cls + ' (contrainte LV2/OPT absolue)');
           }
         }
@@ -332,16 +340,8 @@ function findClassWithoutCodeD_LEGACY(allData, headers, codeD, indicesWithD, ele
     return null;
   }
 
-  for (const cls of Array.from(allClasses)) {
-    if (!classesWithD.has(cls)) {
-      // ✅ Vérifier effectif cible même sans LV2/OPT
-      const targetEffectif = (ctx && ctx.targets && ctx.targets[cls]) || 27;
-      const currentCount = classCounts[cls] || 0;
-      if (currentCount >= targetEffectif) continue;
-      
-      return cls;
-    }
-  }
-
+  // ✅ FAILLE #1 CORRIGÉE : Fallback dangereux SUPPRIMÉ
+  // Mieux vaut garder un conflit DISSO que perdre l'option CHAV/LATIN
+  // Si aucune classe compatible n'est trouvée, l'élève reste dans sa classe actuelle
   return null;
 }
