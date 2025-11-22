@@ -63,7 +63,7 @@ function Phase4_Ultimate_Run(ctx) {
   for (let iter = 0; iter < ULTIMATE_CONFIG.maxSwaps; iter++) {
 
     // A. Identifier la classe la plus "malade" (Score le plus élevé)
-    const worstClassKey = findWorstClass_Ultimate(byClass, allData, globalStats);
+    const worstClassKey = findWorstClass_Ultimate(byClass, allData, globalStats, ctx);
     if (!worstClassKey) break; // Tout est parfait !
 
     // B. Identifier une classe partenaire (Le "Médecin")
@@ -75,7 +75,7 @@ function Phase4_Ultimate_Run(ctx) {
     }
 
     // C. Chercher le meilleur swap "Chirurgical"
-    const bestSwap = findBestSwapBetween_Ultimate(worstClassKey, partnerClassKey, allData, byClass, headers, globalStats);
+    const bestSwap = findBestSwapBetween_Ultimate(worstClassKey, partnerClassKey, allData, byClass, headers, globalStats, ctx);
 
     // D. Appliquer si gain positif
     if (bestSwap && bestSwap.gain > 0.0001) {
@@ -117,12 +117,21 @@ function Phase4_Ultimate_Run(ctx) {
  * - Pénalité forte (au carré) si manque de têtes
  * - Pénalité modérée si excès de têtes
  * - Pénalité très forte (au cube) si excès de Niv1
+ * ✅ BUG #4 CORRECTION : Ajout critère d'effectif
  */
-function calculateScore_Ultimate(indices, allData, globalStats) {
+function calculateScore_Ultimate(indices, allData, globalStats, className, ctx) {
   let score = 0;
   const students = indices.map(i => allData[i]);
   const total = students.length;
   if (total === 0) return 10000;
+
+  // --- 0. CRITÈRE EFFECTIF (BUG #4 CORRECTION - PRIORITÉ HAUTE) ---
+  if (className && ctx && ctx.targets && ctx.targets[className]) {
+    const targetSize = ctx.targets[className];
+    const sizeDiff = total - targetSize;
+    // Pénalité quadratique pour les écarts d'effectif
+    score += Math.pow(sizeDiff, 2) * 800;
+  }
 
   // --- 1. CRITÈRE PROFILS (Héritage LEGACY - Priorité Absolue) ---
   const nbTetes = students.filter(s => s.isHead).length;
@@ -158,12 +167,12 @@ function calculateScore_Ultimate(indices, allData, globalStats) {
 /**
  * Identifie le meilleur swap entre deux classes
  */
-function findBestSwapBetween_Ultimate(cls1Name, cls2Name, allData, byClass, headers, globalStats) {
+function findBestSwapBetween_Ultimate(cls1Name, cls2Name, allData, byClass, headers, globalStats, ctx) {
   const idxList1 = byClass[cls1Name];
   const idxList2 = byClass[cls2Name];
 
-  const scoreBefore = calculateScore_Ultimate(idxList1, allData, globalStats) +
-                      calculateScore_Ultimate(idxList2, allData, globalStats);
+  const scoreBefore = calculateScore_Ultimate(idxList1, allData, globalStats, cls1Name, ctx) +
+                      calculateScore_Ultimate(idxList2, allData, globalStats, cls2Name, ctx);
 
   let bestSwap = null;
   let maxGain = 0;
@@ -183,8 +192,8 @@ function findBestSwapBetween_Ultimate(cls1Name, cls2Name, allData, byClass, head
       const tempList1 = idxList1.filter(idx => idx !== i1).concat([i2]);
       const tempList2 = idxList2.filter(idx => idx !== i2).concat([i1]);
 
-      const scoreAfter = calculateScore_Ultimate(tempList1, allData, globalStats) +
-                         calculateScore_Ultimate(tempList2, allData, globalStats);
+      const scoreAfter = calculateScore_Ultimate(tempList1, allData, globalStats, cls1Name, ctx) +
+                         calculateScore_Ultimate(tempList2, allData, globalStats, cls2Name, ctx);
 
       const gain = scoreBefore - scoreAfter;
 
@@ -291,11 +300,11 @@ function calculateGlobalStats_Ultimate(allData) {
 /**
  * Identifie la classe "malade" (score le plus élevé)
  */
-function findWorstClass_Ultimate(byClass, allData, globalStats) {
+function findWorstClass_Ultimate(byClass, allData, globalStats, ctx) {
   let maxScore = -1;
   let worstClass = null;
   for (const cls in byClass) {
-    const score = calculateScore_Ultimate(byClass[cls], allData, globalStats);
+    const score = calculateScore_Ultimate(byClass[cls], allData, globalStats, cls, ctx);
     if (score > maxScore) {
       maxScore = score;
       worstClass = cls;

@@ -92,9 +92,16 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
   }
 
   // ========== ÉTAPE 3 : RÉPARTITION PAR QUOTAS ==========
+  // ✅ Compter les effectifs déjà placés par classe
+  const classeCounts = {};
+  for (const classe in (ctx.quotas || {})) {
+    classeCounts[classe] = 0;
+  }
+
   // Parcourir les quotas par classe
   for (const classe in (ctx.quotas || {})) {
     const quotas = ctx.quotas[classe];
+    const targetEffectif = (ctx.targets && ctx.targets[classe]) || 27; // Effectif cible
 
     for (const optName in quotas) {
       const quota = quotas[optName];
@@ -104,6 +111,12 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
 
       // Parcourir tous les élèves consolidés
       for (let i = 0; i < allData.length; i++) {
+        // ✅ CORRECTION : Vérifier effectif cible AVANT de placer
+        if (classeCounts[classe] >= targetEffectif) {
+          logLine('WARN', '  ⚠️ ' + classe + ' : effectif cible atteint (' + targetEffectif + '), arrêt placement ' + optName);
+          break;
+        }
+        
         if (placed >= quota) break;
 
         const item = allData[i];
@@ -126,11 +139,12 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
           // ✅ PLACER SANS VÉRIFIER DISSO : LV2/OPT = RÈGLE ABSOLUE
           item.assigned = classe;
           placed++;
+          classeCounts[classe]++; // Incrémenter le compteur de la classe
           stats[optName] = (stats[optName] || 0) + 1;
 
           const nom = String(row[idxNom] || '');
           const prenom = String(row[idxPrenom] || '');
-          logLine('INFO', '    ✅ ' + nom + ' ' + prenom + ' → ' + classe + ' (' + optName + ')');
+          logLine('INFO', '    ✅ ' + nom + ' ' + prenom + ' → ' + classe + ' (' + optName + ') [' + classeCounts[classe] + '/' + targetEffectif + ']');
         }
       }
 

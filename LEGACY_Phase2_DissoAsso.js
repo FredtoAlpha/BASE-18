@@ -292,9 +292,26 @@ function findClassWithoutCodeD_LEGACY(allData, headers, codeD, indicesWithD, ele
     if (cls) allClasses.add(cls);
   }
 
+  // ✅ CORRECTION BUG #2 : Compter effectifs actuels pour chaque classe
+  const classCounts = {};
+  for (let i = 0; i < allData.length; i++) {
+    const cls = String(allData[i].row[idxAssigned] || '').trim();
+    if (cls) {
+      classCounts[cls] = (classCounts[cls] || 0) + 1;
+    }
+  }
+
   if (eleveLV2 || eleveOPT) {
     for (const cls of Array.from(allClasses)) {
       if (classesWithD.has(cls)) continue;
+
+      // ✅ Vérifier effectif cible
+      const targetEffectif = (ctx && ctx.targets && ctx.targets[cls]) || 27;
+      const currentCount = classCounts[cls] || 0;
+      if (currentCount >= targetEffectif) {
+        logLine('INFO', '        ⚠️ Classe ' + cls + ' pleine (' + currentCount + '/' + targetEffectif + '), skip');
+        continue;
+      }
 
       const quotas = (ctx && ctx.quotas && ctx.quotas[cls]) || {};
 
@@ -306,17 +323,22 @@ function findClassWithoutCodeD_LEGACY(allData, headers, codeD, indicesWithD, ele
       }
 
       if (canPlace) {
-        logLine('INFO', '        ✅ Classe ' + cls + ' compatible (propose ' + (eleveLV2 || eleveOPT) + ')');
+        logLine('INFO', '        ✅ Classe ' + cls + ' compatible (propose ' + (eleveLV2 || eleveOPT) + ') [' + currentCount + '/' + targetEffectif + ']');
         return cls;
       }
     }
 
-    logLine('WARN', '        ⚠️ Aucune classe sans D=' + codeD + ' ne propose ' + (eleveLV2 || eleveOPT));
+    logLine('WARN', '        ⚠️ Aucune classe sans D=' + codeD + ' ne propose ' + (eleveLV2 || eleveOPT) + ' avec place disponible');
     return null;
   }
 
   for (const cls of Array.from(allClasses)) {
     if (!classesWithD.has(cls)) {
+      // ✅ Vérifier effectif cible même sans LV2/OPT
+      const targetEffectif = (ctx && ctx.targets && ctx.targets[cls]) || 27;
+      const currentCount = classCounts[cls] || 0;
+      if (currentCount >= targetEffectif) continue;
+      
       return cls;
     }
   }

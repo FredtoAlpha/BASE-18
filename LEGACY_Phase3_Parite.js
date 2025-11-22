@@ -52,6 +52,91 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
   const idxAssigned = headersRef.indexOf('_CLASS_ASSIGNED');
   const idxSexe = headersRef.indexOf('SEXE');
   const idxNom = headersRef.indexOf('NOM');
+  const idxLV2 = headersRef.indexOf('LV2');
+  const idxOPT = headersRef.indexOf('OPT');
+
+  // ========== RÉÉQUILIBRAGE EFFECTIFS (BUG #3 CORRECTION) ==========
+  logLine('INFO', '📊 Rééquilibrage des effectifs...');
+  
+  // Calculer effectifs actuels vs cibles
+  const classCounts = {};
+  (ctx.niveaux || []).forEach(function(cls) {
+    classCounts[cls] = 0;
+  });
+  
+  for (let i = 0; i < allData.length; i++) {
+    const cls = String(allData[i].row[idxAssigned] || '').trim();
+    if (cls && classCounts[cls] !== undefined) {
+      classCounts[cls]++;
+    }
+  }
+
+  // Identifier classes sur/sous-chargées
+  const overloaded = [];
+  const underloaded = [];
+  
+  for (const cls in classCounts) {
+    const target = (ctx.targets && ctx.targets[cls]) || 27;
+    const current = classCounts[cls];
+    const gap = current - target;
+    
+    logLine('INFO', '  • ' + cls + ' : ' + current + '/' + target + ' (' + (gap > 0 ? '+' : '') + gap + ')');
+    
+    if (gap > 0) overloaded.push({ cls: cls, gap: gap });
+    if (gap < 0) underloaded.push({ cls: cls, gap: -gap });
+  }
+
+  // Déplacer élèves des classes surchargées vers sous-chargées
+  let moved = 0;
+  for (let o = 0; o < overloaded.length && underloaded.length > 0; o++) {
+    const over = overloaded[o];
+    
+    while (over.gap > 0 && underloaded.length > 0) {
+      // Trouver élève mobile dans classe surchargée
+      let movedStudent = false;
+      
+      for (let i = 0; i < allData.length && !movedStudent; i++) {
+        const item = allData[i];
+        const cls = String(item.row[idxAssigned] || '').trim();
+        if (cls !== over.cls) continue;
+        
+        // Vérifier si élève peut être déplacé (a ESP, pas d'option spéciale)
+        const lv2 = String(item.row[idxLV2] || '').trim().toUpperCase();
+        const opt = String(item.row[idxOPT] || '').trim().toUpperCase();
+        
+        // Chercher classe sous-chargée compatible
+        for (let u = 0; u < underloaded.length && !movedStudent; u++) {
+          const under = underloaded[u];
+          if (under.gap <= 0) continue;
+          
+          // Vérifier compatibilité LV2/OPT
+          const targetQuotas = (ctx.quotas && ctx.quotas[under.cls]) || {};
+          let compatible = false;
+          
+          if (lv2 === 'ESP' && targetQuotas['ESP'] > 0) compatible = true;
+          else if (opt && targetQuotas[opt] > 0) compatible = true;
+          else if (!lv2 && !opt) compatible = true;
+          
+          if (compatible) {
+            const nom = String(item.row[idxNom] || '');
+            logLine('INFO', '  🔄 Rééquilibrage : ' + nom + ' : ' + cls + ' → ' + under.cls);
+            
+            item.row[idxAssigned] = under.cls;
+            over.gap--;
+            under.gap--;
+            classCounts[over.cls]--;
+            classCounts[under.cls]++;
+            moved++;
+            movedStudent = true;
+          }
+        }
+      }
+      
+      if (!movedStudent) break; // Aucun élève mobile trouvé
+    }
+  }
+  
+  logLine('INFO', '  ✅ ' + moved + ' élèves rééquilibrés');
 
   // ========== PLACER ÉLÈVES NON ASSIGNÉS ==========
   let placed = 0;
