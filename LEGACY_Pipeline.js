@@ -70,25 +70,64 @@ function legacy_runFullPipeline_PRIME() {
       return { success: false, locked: true };
     }
 
-    // 2. DÉTECTER CLASSES SOURCES
-    const sourceSheets = detectSourceSheets();
-    if (sourceSheets.length === 0) {
-      logLine('ERROR', '❌ Aucun onglet source détecté (Format attendu: 6°1, 5°2...)');
-      ui.alert('⚠️ Aucune classe source trouvée.\nFormat attendu: 6°1, 5°2, 4°3, etc.');
-      return { success: false, error: 'No source sheets' };
+    // 2. CONSTRUIRE CONTEXTE COMPLET depuis _STRUCTURE
+    // ✅ CORRECTION : Utiliser makeCtxFromSourceSheets_LEGACY qui lit _STRUCTURE,
+    //    crée le mapping source→dest, charge quotas/effectifs/parité/autorisations
+    logLine('INFO', '🔧 Construction du contexte LEGACY complet depuis _STRUCTURE...');
+    const ctx = makeCtxFromSourceSheets_LEGACY();
+    
+    // ✅ Charger les élèves depuis les onglets sources
+    logLine('INFO', '📚 Chargement des élèves depuis les onglets sources...');
+    const students = loadAllStudentsData(ctx);
+    ctx.allStudents = students;
+    
+    if (!ctx.allStudents || ctx.allStudents.length === 0) {
+      logLine('ERROR', '❌ Aucun élève chargé depuis les onglets sources');
+      ui.alert('⚠️ Aucun élève trouvé dans les classes sources.\nVérifiez que les onglets sources contiennent des données.');
+      return { success: false, error: 'No students' };
     }
-    logLine('INFO', `📋 Classes sources détectées: ${sourceSheets.join(', ')}`);
-
-    // 3. CONSTRUIRE CONTEXTE
-    const ctx = buildLegacyContext(sourceSheets);
+    
     logLine('INFO', `✅ Contexte créé: ${ctx.allStudents.length} élèves`);
+    logLine('INFO', `📋 Onglets sources: ${(ctx.srcSheets || []).join(', ')}`);
+    logLine('INFO', `📋 Onglets TEST cibles: ${(ctx.cacheSheets || []).join(', ')}`);
 
-    // 4. CRÉER ONGLETS TEST
-    createTestSheets(ctx);
-    logLine('INFO', `✅ Onglets TEST créés: ${sourceSheets.length}`);
+    // 3. INITIALISER ONGLETS TEST (avec mapping et en-têtes corrects)
+    logLine('INFO', '📋 Initialisation des onglets TEST...');
+    initEmptyTestTabs_LEGACY(ctx);
+    logLine('INFO', `✅ Onglets TEST initialisés: ${ctx.cacheSheets.length}`);
 
-    // 5. LANCER PHASE 4 ULTIMATE
-    logLine('INFO', '\n⚡ PHASE 4: Lancement moteur ULTIMATE...');
+    // 4. PHASE 1 : Répartition OPTIONS/LV2 selon quotas
+    logLine('INFO', '\n📌 PHASE 1: Répartition OPTIONS/LV2...');
+    const p1Result = Phase1I_dispatchOptionsLV2_LEGACY(ctx);
+    if (!p1Result.ok) {
+      logLine('ERROR', `❌ Erreur Phase 1: ${p1Result.error || 'Échec'}`);
+      ui.alert(`❌ Erreur Phase 1: ${p1Result.error || 'Échec répartition OPTIONS/LV2'}`);
+      return { success: false, error: 'Phase 1 failed' };
+    }
+    logLine('SUCCESS', `✅ Phase 1 terminée: ${p1Result.placed || 0} élèves placés avec OPTIONS/LV2`);
+
+    // 5. PHASE 2 : Codes ASSO/DISSO (D1, fratries, etc.)
+    logLine('INFO', '\n📌 PHASE 2: Application codes ASSO/DISSO...');
+    const p2Result = Phase2I_applyDissoAsso_LEGACY(ctx);
+    if (!p2Result.ok) {
+      logLine('ERROR', `❌ Erreur Phase 2: ${p2Result.error || 'Échec'}`);
+      ui.alert(`❌ Erreur Phase 2: ${p2Result.error || 'Échec codes ASSO/DISSO'}`);
+      return { success: false, error: 'Phase 2 failed' };
+    }
+    logLine('SUCCESS', `✅ Phase 2 terminée: ASSO=${p2Result.asso || 0}, DISSO=${p2Result.disso || 0}`);
+
+    // 6. PHASE 3 : Compléter effectifs et équilibrer parité
+    logLine('INFO', '\n📌 PHASE 3: Effectifs & Parité...');
+    const p3Result = Phase3I_completeAndParity_LEGACY(ctx);
+    if (!p3Result.ok) {
+      logLine('ERROR', `❌ Erreur Phase 3: ${p3Result.error || 'Échec'}`);
+      ui.alert(`❌ Erreur Phase 3: ${p3Result.error || 'Échec parité'}`);
+      return { success: false, error: 'Phase 3 failed' };
+    }
+    logLine('SUCCESS', `✅ Phase 3 terminée: ${p3Result.placed || 0} élèves placés, parité équilibrée`);
+
+    // 7. PHASE 4 : Optimisation fine par swaps (ULTIMATE)
+    logLine('INFO', '\n⚡ PHASE 4: Optimisation ULTIMATE...');
     const p4Result = Phase4_Ultimate_Run(ctx);
 
     if (!p4Result.ok) {
@@ -98,12 +137,12 @@ function legacy_runFullPipeline_PRIME() {
     }
     logLine('SUCCESS', `✅ Swaps appliqués: ${p4Result.swapsApplied}`);
 
-    // 6. CRÉER ONGLETS FIN
-    logLine('INFO', '\n💾 Finalisation...');
+    // 8. CRÉER ONGLETS FIN avec contexte complet
+    logLine('INFO', '\n💾 Finalisation avec contexte...');
     const finResult = finalizeAllSheets(ctx);
     logLine('SUCCESS', `✅ Onglets FIN créés: ${finResult.count}`);
 
-    // 7. RÉSUMÉ
+    // 9. RÉSUMÉ
     const runtime = (new Date() - startTime) / 1000;
     logLine('SUCCESS', `\n✅ PIPELINE LEGACY TERMINÉ (${runtime.toFixed(1)}s)`);
     logLine('INFO', '═'.repeat(80));
@@ -112,7 +151,7 @@ function legacy_runFullPipeline_PRIME() {
     ui.alert(
       `✅ RÉPARTITION TERMINÉE\n\n` +
       `• Élèves: ${ctx.allStudents.length}\n` +
-      `• Classes: ${sourceSheets.length}\n` +
+      `• Classes: ${ctx.srcSheets.length}\n` +
       `• Optimisations: ${p4Result.swapsApplied}\n` +
       `• Durée: ${runtime.toFixed(1)}s\n\n` +
       `Onglets FIN prêts à utiliser !`
@@ -122,7 +161,7 @@ function legacy_runFullPipeline_PRIME() {
     return {
       success: true,
       students: ctx.allStudents.length,
-      classes: sourceSheets.length,
+      classes: ctx.srcSheets.length,
       swaps: p4Result.swapsApplied,
       runtime: runtime,
       timestamp: new Date().toISOString()
@@ -200,15 +239,54 @@ function createTestSheets(ctx) {
 
 /**
  * Crée les onglets FIN définitifs avec formatage
+ * ✅ CORRECTION : Utiliser le contexte pour copier TEST→FIN avec formatage
  */
 function finalizeAllSheets(ctx) {
-  const results = finalizeClasses({}, 'finalize');
-
-  return {
-    ok: results.ok,
-    count: results.results?.created?.length || 0,
-    created: results.results?.created || []
-  };
+  try {
+    const ss = ctx.ss;
+    const createdSheets = [];
+    
+    // Pour chaque onglet TEST, créer un onglet FIN
+    (ctx.cacheSheets || []).forEach(testName => {
+      const finName = testName.replace(/TEST$/i, 'FIN');
+      const testSheet = ss.getSheetByName(testName);
+      
+      if (!testSheet) {
+        logLine('WARN', `⚠️ Onglet ${testName} introuvable pour finalisation`);
+        return;
+      }
+      
+      // Supprimer l'ancien FIN si existe
+      let finSheet = ss.getSheetByName(finName);
+      if (finSheet) {
+        ss.deleteSheet(finSheet);
+      }
+      
+      // Copier TEST → FIN
+      finSheet = testSheet.copyTo(ss);
+      finSheet.setName(finName);
+      
+      logLine('INFO', `  ✅ ${finName} créé depuis ${testName}`);
+      createdSheets.push(finName);
+    });
+    
+    SpreadsheetApp.flush();
+    
+    return {
+      ok: true,
+      count: createdSheets.length,
+      created: createdSheets
+    };
+    
+  } catch (e) {
+    logLine('ERROR', `❌ Erreur finalisation: ${e.message}`);
+    return {
+      ok: false,
+      count: 0,
+      created: [],
+      error: e.message
+    };
+  }
 }
 
 // logLine() defined in Phase4_Ultimate.gs (single global definition)

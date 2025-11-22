@@ -141,25 +141,35 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
 
   logLine('INFO', '  ✅ ' + swaps + ' swaps parité appliqués');
 
-  // ========== RÉÉCRIRE ==========
-  const bySheet = {};
+  // ========== RÉÉCRIRE PAR CLASSE ASSIGNÉE ==========
+  // ✅ CORRECTION : Regrouper par _CLASS_ASSIGNED pour que les swaps soient effectifs
+  const byClass = {};
   for (let i = 0; i < allData.length; i++) {
     const item = allData[i];
-    if (!bySheet[item.sheetName]) bySheet[item.sheetName] = [];
-    bySheet[item.sheetName].push(item);
+    const assigned = String(item.row[idxAssigned] || '').trim();
+    if (assigned) {
+      if (!byClass[assigned]) byClass[assigned] = [];
+      byClass[assigned].push(item.row);
+    }
   }
 
-  for (const sheetName in bySheet) {
-    const testSheet = ss.getSheetByName(sheetName);
-    if (!testSheet) continue;
+  // Écrire dans les onglets TEST correspondants
+  for (const className in byClass) {
+    const testSheetName = className + 'TEST';
+    const testSheet = ss.getSheetByName(testSheetName);
+    if (!testSheet) {
+      logLine('WARN', '⚠️ Onglet ' + testSheetName + ' introuvable, skip');
+      continue;
+    }
 
-    const items = bySheet[sheetName];
-    const allRows = [headersRef];
-    items.forEach(function(item) {
-      allRows.push(item.row);
-    });
-
+    const rows = byClass[className];
+    const allRows = [headersRef].concat(rows);
+    
+    // Effacer contenu existant et écrire nouvelles données
+    testSheet.clearContents();
     testSheet.getRange(1, 1, allRows.length, headersRef.length).setValues(allRows);
+    
+    logLine('INFO', '  ✅ ' + testSheetName + ' : ' + rows.length + ' élèves');
   }
 
   SpreadsheetApp.flush();

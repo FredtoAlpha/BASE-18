@@ -79,16 +79,17 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
   // ========== ÉTAPE 2 : TROUVER LES INDEX DES COLONNES ==========
   const idxLV2 = headersRef.indexOf('LV2');
   const idxOPT = headersRef.indexOf('OPT');
-  const idxAssigned = headersRef.indexOf('_CLASS_ASSIGNED');
   const idxNom = headersRef.indexOf('NOM');
   const idxPrenom = headersRef.indexOf('PRENOM');
 
-  if (idxAssigned === -1) {
-    logLine('ERROR', '❌ Colonne _CLASS_ASSIGNED manquante dans les onglets sources');
-    throw new Error('Colonne _CLASS_ASSIGNED manquante');
+  // ✅ CORRECTION : _CLASS_ASSIGNED n'existe PAS dans les sources
+  //    On va l'ajouter dynamiquement pour chaque élève
+  logLine('INFO', '  📍 Colonnes sources : LV2=' + idxLV2 + ', OPT=' + idxOPT);
+  
+  // Ajouter _CLASS_ASSIGNED à chaque élève (nouvelle colonne)
+  for (let i = 0; i < allData.length; i++) {
+    allData[i].assigned = ''; // Nouvelle propriété pour stocker l'affectation
   }
-
-  logLine('INFO', '  📍 Colonnes : LV2=' + idxLV2 + ', OPT=' + idxOPT + ', _CLASS_ASSIGNED=' + idxAssigned);
 
   // ========== ÉTAPE 3 : RÉPARTITION PAR QUOTAS ==========
   // Parcourir les quotas par classe
@@ -107,9 +108,9 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
 
         const item = allData[i];
         const row = item.row;
-        const assigned = String(row[idxAssigned] || '').trim();
 
-        if (assigned) continue; // Déjà placé
+        // ✅ Utiliser la propriété assigned au lieu de row[idxAssigned]
+        if (item.assigned) continue; // Déjà placé
 
         const lv2 = String(row[idxLV2] || '').trim().toUpperCase();
         const opt = String(row[idxOPT] || '').trim().toUpperCase();
@@ -123,7 +124,7 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
 
         if (match) {
           // ✅ PLACER SANS VÉRIFIER DISSO : LV2/OPT = RÈGLE ABSOLUE
-          row[idxAssigned] = classe;
+          item.assigned = classe;
           placed++;
           stats[optName] = (stats[optName] || 0) + 1;
 
@@ -146,20 +147,21 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
   const byClass = {};
   for (let i = 0; i < allData.length; i++) {
     const item = allData[i];
-    const row = item.row;
-    const assigned = String(row[idxAssigned] || '').trim();
-
-    if (assigned) {
-      if (!byClass[assigned]) {
-        byClass[assigned] = [];
+    
+    // ✅ Utiliser la propriété assigned
+    if (item.assigned) {
+      if (!byClass[item.assigned]) {
+        byClass[item.assigned] = [];
       }
-      byClass[assigned].push(row);
+      // Créer une nouvelle ligne avec _CLASS_ASSIGNED
+      const newRow = item.row.concat([item.assigned]); // Ajouter _CLASS_ASSIGNED à la fin
+      byClass[item.assigned].push(newRow);
     }
   }
 
   // Écrire dans les onglets TEST correspondants
   for (const classe in byClass) {
-    const testName = classe + ctx.writeTarget; // Ex: "5°1TEST"
+    const testName = classe + 'TEST';
     const testSheet = ss.getSheetByName(testName);
 
     if (!testSheet) {
@@ -171,7 +173,8 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
 
     // Écrire les données (à partir de la ligne 2)
     if (rows.length > 0) {
-      testSheet.getRange(2, 1, rows.length, headersRef.length).setValues(rows);
+      // Les onglets TEST ont déjà la colonne _CLASS_ASSIGNED en dernière position
+      testSheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
       logLine('INFO', '  ✅ ' + testName + ' : ' + rows.length + ' élèves écrits');
     }
   }
@@ -186,7 +189,13 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
     logLine('WARN', '⚠️ computeMobilityFlags_LEGACY() non disponible (vérifier que LEGACY_Mobility.gs est chargé)');
   }
 
-  logLine('INFO', '✅ PHASE 1 LEGACY terminée');
+  // Calculer le total des élèves placés
+  let totalPlaced = 0;
+  for (const classe in byClass) {
+    totalPlaced += byClass[classe].length;
+  }
 
-  return { ok: true, counts: stats };
+  logLine('INFO', '✅ PHASE 1 LEGACY terminée : ' + totalPlaced + ' élèves placés');
+
+  return { ok: true, counts: stats, placed: totalPlaced };
 }

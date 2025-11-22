@@ -214,9 +214,11 @@ function loadAndClassifyData_Ultimate(ctx) {
   const byClass = {};
   let headersRef = null;
 
-  const sheets = ss.getSheets().filter(s => /.+°\d+$/.test(s.getName())); // ✅ Pattern universel
+  // ✅ CORRECTION CRITIQUE : Lire UNIQUEMENT depuis les onglets TEST
+  //    qui contiennent le résultat des Phases 1-2-3, PAS depuis les sources
+  const testSheets = (ctx.cacheSheets || []).map(name => ss.getSheetByName(name)).filter(s => s);
 
-  sheets.forEach(sheet => {
+  testSheets.forEach(sheet => {
     const data = sheet.getDataRange().getValues();
     if (data.length < 2) return;
 
@@ -255,8 +257,13 @@ function loadAndClassifyData_Ultimate(ctx) {
 
       allData.push(student);
 
-      if (!byClass[sheet.getName()]) byClass[sheet.getName()] = [];
-      byClass[sheet.getName()].push(allData.length - 1);
+      // ✅ CORRECTION : Extraire le nom de classe depuis le nom de l'onglet TEST
+      //    Ex: "5°1TEST" → "5°1"
+      const sheetName = sheet.getName();
+      const className = sheetName.replace(/TEST$/i, '');
+      
+      if (!byClass[className]) byClass[className] = [];
+      byClass[className].push(allData.length - 1);
     }
   });
 
@@ -341,6 +348,9 @@ function saveResults_Ultimate(ss, allData, byClass, headersRef) {
 
   for (const className in byClass) {
     const indices = byClass[className];
+    
+    // ✅ className est déjà le nom de destination (ex: "5°1")
+    //    car Phase4 charge depuis les onglets TEST (5°1TEST)
     const testSheetName = className + 'TEST';
     const sheet = ss.getSheetByName(testSheetName);
 
