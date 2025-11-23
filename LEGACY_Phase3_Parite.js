@@ -150,7 +150,9 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
   logLine('INFO', '  ✅ ' + moved + ' élèves rééquilibrés');
 
   // ========== PLACER ÉLÈVES NON ASSIGNÉS (ESP par défaut) ==========
+  const idxDISSO = headersRef.indexOf('DISSO');
   let placed = 0;
+
   for (let i = 0; i < allData.length; i++) {
     const item = allData[i];
     if (String(item.row[idxAssigned] || '').trim()) continue;
@@ -158,44 +160,70 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
     // ✅ Trouver classe compatible avec LV2/OPT de l'élève
     const lv2 = String(item.row[idxLV2] || '').trim().toUpperCase();
     const opt = String(item.row[idxOPT] || '').trim().toUpperCase();
-    
+    const disso = String(item.row[idxDISSO] || '').trim().toUpperCase();
+    const nom = String(item.row[idxNom] || '');
+
     let targetClass = null;
-    
-    // Trouver la classe la moins remplie qui propose cette LV2/OPT
+
+    // Trouver la classe la moins remplie qui propose cette LV2/OPT ET respecte DISSO
     for (const cls in (ctx.targets || {})) {
       const quotas = (ctx.quotas && ctx.quotas[cls]) || {};
       const current = classCounts[cls] || 0;
       const target = ctx.targets[cls] || 27;
-      
+
       // Vérifier qu'il reste de la place
       if (current >= target) continue;
-      
+
       // Vérifier compatibilité LV2 (LV2 universelles toujours compatibles)
       let compatible = true;
       if (lv2 && lv2Universelles.indexOf(lv2) === -1 && ['ITA', 'ESP', 'ALL', 'PT'].indexOf(lv2) >= 0) {
         if (!quotas[lv2] || quotas[lv2] <= 0) compatible = false;
       }
-      
+
       // Vérifier compatibilité OPT
       if (opt && ['CHAV', 'LATIN', 'GREC'].indexOf(opt) >= 0) {
         if (!quotas[opt] || quotas[opt] <= 0) compatible = false;
       }
-      
+
+      // 🚫 NOUVEAU : Vérifier absence de conflits DISSO dans la classe cible
+      if (disso && compatible) {
+        for (let j = 0; j < allData.length; j++) {
+          if (i === j) continue;
+          const otherAssigned = String(allData[j].row[idxAssigned] || '').trim();
+          if (otherAssigned !== cls) continue;
+
+          const otherDisso = String(allData[j].row[idxDISSO] || '').trim().toUpperCase();
+          if (otherDisso === disso) {
+            compatible = false; // Conflit DISSO détecté !
+            logLine('INFO', '    ⚠️ ' + nom + ' (DISSO=' + disso + ') : Conflit détecté dans ' + cls + ', cherche autre classe...');
+            break;
+          }
+        }
+      }
+
       if (compatible) {
         if (!targetClass || current < (classCounts[targetClass] || 0)) {
           targetClass = cls;
         }
       }
     }
-    
+
     if (!targetClass) {
       // Fallback : classe la moins remplie (ignorant quotas)
       targetClass = findLeastPopulatedClass_Phase3(allData, headersRef, ctx);
+      logLine('WARN', '    ⚠️ ' + nom + ' : Aucune classe compatible trouvée, placement forcé dans ' + targetClass);
     }
-    
+
     item.row[idxAssigned] = targetClass;
     classCounts[targetClass] = (classCounts[targetClass] || 0) + 1;
     placed++;
+
+    // 📋 LOG détaillé du placement
+    const logDetails = [];
+    if (lv2) logDetails.push('LV2=' + lv2);
+    if (opt) logDetails.push('OPT=' + opt);
+    if (disso) logDetails.push('DISSO=' + disso);
+    logLine('INFO', '    ✅ ' + nom + ' → ' + targetClass + ' (' + logDetails.join(', ') + ') [' + classCounts[targetClass] + '/' + (ctx.targets[targetClass] || 27) + ']');
   }
 
   logLine('INFO', '  ✅ ' + placed + ' élèves non assignés placés');
@@ -263,13 +291,33 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
           }
 
           if (idx1 >= 0 && idx2 >= 0) {
+            // 📋 LOG détaillé AVANT le swap
+            const s1 = allData[idx1];
+            const s2 = allData[idx2];
+            const nom1 = s1.row[idxNom];
+            const nom2 = s2.row[idxNom];
+            const disso1 = idxDISSO >= 0 ? String(s1.row[idxDISSO] || '').trim().toUpperCase() : '';
+            const disso2 = idxDISSO >= 0 ? String(s2.row[idxDISSO] || '').trim().toUpperCase() : '';
+
+            const details1 = [];
+            if (String(s1.row[idxLV2] || '').trim()) details1.push('LV2=' + String(s1.row[idxLV2]).trim());
+            if (String(s1.row[idxOPT] || '').trim()) details1.push('OPT=' + String(s1.row[idxOPT]).trim());
+            if (disso1) details1.push('DISSO=' + disso1);
+
+            const details2 = [];
+            if (String(s2.row[idxLV2] || '').trim()) details2.push('LV2=' + String(s2.row[idxLV2]).trim());
+            if (String(s2.row[idxOPT] || '').trim()) details2.push('OPT=' + String(s2.row[idxOPT]).trim());
+            if (disso2) details2.push('DISSO=' + disso2);
+
             // Swap
             allData[idx1].row[idxAssigned] = cls2;
             allData[idx2].row[idxAssigned] = cls1;
             swaps++;
             improved = true;
 
-            logLine('INFO', '  🔄 Swap parité : ' + allData[idx1].row[idxNom] + ' (' + cls1 + '→' + cls2 + ') ↔ ' + allData[idx2].row[idxNom] + ' (' + cls2 + '→' + cls1 + ')');
+            logLine('INFO', '  🔄 Swap parité #' + swaps + ' :');
+            logLine('INFO', '    • ' + nom1 + ' : ' + cls1 + ' → ' + cls2 + ' (' + details1.join(', ') + ')');
+            logLine('INFO', '    • ' + nom2 + ' : ' + cls2 + ' → ' + cls1 + ' (' + details2.join(', ') + ')');
             break;
           }
         }
@@ -318,7 +366,19 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
 
   logLine('INFO', '✅ PHASE 3 LEGACY terminée : ' + placed + ' placés, ' + swaps + ' swaps parité');
 
-  return { ok: true, message: 'Phase 3 terminée', placed: placed, swaps: swaps };
+  // 🔍 VALIDATION FINALE : Vérifier absence de duplications DISSO
+  const validationResult = validateDISSOConstraints_Phase3(allData, headersRef);
+  if (!validationResult.ok) {
+    logLine('ERROR', '❌ VALIDATION DISSO ÉCHOUÉE après Phase 3 !');
+    logLine('ERROR', '  Duplications détectées : ' + validationResult.duplicates.length);
+    validationResult.duplicates.forEach(function(dup) {
+      logLine('ERROR', '    • ' + dup.classe + ' : ' + dup.code + ' présent ' + dup.count + ' fois (' + dup.noms.join(', ') + ')');
+    });
+  } else {
+    logLine('INFO', '✅ Validation DISSO : Aucune duplication détectée');
+  }
+
+  return { ok: true, message: 'Phase 3 terminée', placed: placed, swaps: swaps, validation: validationResult };
 }
 
 function findLeastPopulatedClass_Phase3(allData, headers, ctx) {
@@ -412,4 +472,67 @@ function canSwapForParity_Phase3(studentIdx, targetClass, allData, headers, ctx)
   }
   
   return true; // Swap autorisé
+}
+
+/**
+ * 🔍 VALIDATION FINALE : Vérifie qu'il n'y a pas de codes DISSO dupliqués dans les classes
+ */
+function validateDISSOConstraints_Phase3(allData, headers) {
+  const idxAssigned = headers.indexOf('_CLASS_ASSIGNED');
+  const idxDISSO = headers.indexOf('DISSO');
+  const idxNom = headers.indexOf('NOM');
+
+  if (idxDISSO === -1) {
+    return { ok: true, message: 'Colonne DISSO non trouvée' };
+  }
+
+  // Grouper par classe
+  const byClass = {};
+  for (let i = 0; i < allData.length; i++) {
+    const cls = String(allData[i].row[idxAssigned] || '').trim();
+    if (!cls) continue;
+
+    if (!byClass[cls]) byClass[cls] = [];
+    byClass[cls].push(allData[i]);
+  }
+
+  // Vérifier chaque classe
+  const duplicates = [];
+  for (const cls in byClass) {
+    const students = byClass[cls];
+    const dissoCounts = {};
+
+    for (let i = 0; i < students.length; i++) {
+      const disso = String(students[i].row[idxDISSO] || '').trim().toUpperCase();
+      if (!disso) continue;
+
+      if (!dissoCounts[disso]) {
+        dissoCounts[disso] = {
+          code: disso,
+          count: 0,
+          noms: []
+        };
+      }
+
+      dissoCounts[disso].count++;
+      dissoCounts[disso].noms.push(String(students[i].row[idxNom] || ''));
+    }
+
+    // Détecter duplications
+    for (const code in dissoCounts) {
+      if (dissoCounts[code].count > 1) {
+        duplicates.push({
+          classe: cls,
+          code: code,
+          count: dissoCounts[code].count,
+          noms: dissoCounts[code].noms
+        });
+      }
+    }
+  }
+
+  return {
+    ok: duplicates.length === 0,
+    duplicates: duplicates
+  };
 }
