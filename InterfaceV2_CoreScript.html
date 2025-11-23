@@ -1419,8 +1419,8 @@ async function loadDataForMode(mode) {
   showSpinner();
   try {
     // Appel à la fonction Google Apps Script pour récupérer les données
-    const result = await gsRun('getClassesData', mode);
-    console.log('🔍 RÉSULTAT COMPLET getClassesData:', JSON.stringify(result, null, 2));
+    const result = await gsRun('getClassesDataForInterfaceV2', mode);
+    console.log('🔍 RÉSULTAT COMPLET getClassesDataForInterfaceV2:', JSON.stringify(result, null, 2));
     console.log('🔍 Type de result:', typeof result);
     console.log('🔍 result.success:', result?.success);
     console.log('🔍 result.data:', result?.data);
