@@ -1604,23 +1604,48 @@ function updateSaveBadgeUI() {
   }
 }
 
-// ========== FONCTIONS MANQUANTES - Auto-save ==========
+// ========== FONCTIONS MANQUANTES - Auto-save avec débounce intelligent ==========
+
+// Timer pour le débounce intelligent
+let autoSaveDebounceTimer = null;
+
+/**
+ * Démarre l'auto-save avec débounce intelligent
+ * Sauvegarde 30 secondes après la dernière action utilisateur
+ */
 function startAutoSave() {
-  stopAutoSave(); // ← On s'assure qu'il n'y en a qu'un
-  console.log('🔄 Auto-save CACHE activé (1 minute)');
-  autoSaveInterval = setInterval(async () => {
-    // Appeler window.saveImmediateCache qui gère déjà la vérification has_user_action
-    if (typeof window.saveImmediateCache === 'function') {
-      await window.saveImmediateCache();
+  console.log('🔄 Auto-save CACHE activé (débounce 30s après dernière action)');
+
+  // Fonction pour planifier la sauvegarde
+  window.scheduleAutoSave = function() {
+    // Annuler le timer précédent
+    if (autoSaveDebounceTimer) {
+      clearTimeout(autoSaveDebounceTimer);
     }
-  }, 60000); // Toutes les 1 minute
+
+    // Planifier une nouvelle sauvegarde dans 30 secondes
+    autoSaveDebounceTimer = setTimeout(async () => {
+      if (typeof window.saveImmediateCache === 'function') {
+        console.log('⏰ Déclenchement auto-save (30s après dernière action)');
+        await window.saveImmediateCache();
+      }
+    }, 30000); // 30 secondes
+  };
+
+  // Démarrer le premier cycle
+  window.scheduleAutoSave();
 }
 
 function stopAutoSave() {
-  if (autoSaveInterval !== null) { // ← Vérifie l'existence
-    clearInterval(autoSaveInterval);
-    autoSaveInterval = null;
+  if (autoSaveDebounceTimer !== null) {
+    clearTimeout(autoSaveDebounceTimer);
+    autoSaveDebounceTimer = null;
     console.log('⏹️ Auto-save arrêté');
+  }
+
+  // Nettoyer la fonction globale
+  if (window.scheduleAutoSave) {
+    delete window.scheduleAutoSave;
   }
 }
 
@@ -2229,15 +2254,16 @@ const App = {
           mode: STATE.currentMode
         };
 
-        // Sauvegarde locale
+        // Sauvegarde locale (localStorage)
         localStorage.setItem('cache-data', JSON.stringify(cacheData));
 
         if (typeof gsRun === 'function') {
           try {
-            const result = await gsRun('saveCacheData', cacheData);
+            // 🔥 NOUVEAU: Appel à saveDispositionToSheets pour créer les onglets CACHE
+            const result = await gsRun('saveDispositionToSheets', disposition);
 
             if (result && result.success) {
-              console.log('💾 Sauvegarde automatique CACHE réussie');
+              console.log(`💾 Sauvegarde CACHE réussie: ${result.saved} onglets créés`);
 
               // 2. Après succès → on remet le flag à false,
               //    on horodate, on met à jour le badge
