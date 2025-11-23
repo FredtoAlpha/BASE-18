@@ -5570,7 +5570,7 @@ window.updateCharts = updateCharts;
         await new Promise(resolve => setTimeout(resolve, 200));
 
         // ✅ SAUVEGARDE PROGRESSIVE CLASSE PAR CLASSE (évite les timeouts)
-        if (progressive && saveFunctionName === 'saveElevesCache') {
+        if (progressive && saveFunctionName === 'saveCacheData') {
           const classes = Object.keys(disposition);
           const totalClasses = classes.length;
           let successCount = 0;
@@ -5659,7 +5659,7 @@ window.updateCharts = updateCharts;
     if (btnSaveWIP) btnSaveWIP.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
-      lancerSauvegardeAvecProgression('saveElevesCache', e.currentTarget, {
+      lancerSauvegardeAvecProgression('saveCacheData', e.currentTarget, {
         title: 'Sauvegarde Brouillon (CACHE)...',
         successMessage: 'Brouillon sauvegardé avec succès !'
       });
