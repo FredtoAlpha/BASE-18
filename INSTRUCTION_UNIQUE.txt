@@ -45,10 +45,22 @@ La solution : Remplacer UN SEUL fichier dans Google Apps Script.
 ═══════════════════════════════════════════════════════════════
 
 Toutes les fonctions manquantes sont maintenant dans Code.gs :
+
+📊 Fonctions de données principales :
 ✅ getClassesData
-✅ getLastCacheInfo  
+✅ getClassesDataForInterfaceV2
+✅ getLastCacheInfo
 ✅ getBridgeContextAndClear
 ✅ saveCacheData
 ✅ loadCacheData
 ✅ saveElevesSnapshot
 ✅ getUiSettings
+
+🔐 Fonctions d'authentification :
+✅ getAdminPasswordFromConfig
+✅ verifierMotDePasseAdmin
+
+📈 Fonctions de scores et règles :
+✅ loadFINSheetsWithScores
+✅ getINTScores
+✅ updateStructureRules

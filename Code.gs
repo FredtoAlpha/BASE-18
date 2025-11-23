@@ -441,3 +441,209 @@ function getUiSettings() {
     return { success: false, error: e.toString() };
   }
 }
+
+/**
+ * Récupère le mot de passe admin depuis _CONFIG B3
+ * @returns {string} Mot de passe admin
+ */
+function getAdminPasswordFromConfig() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const configSheet = ss.getSheetByName('_CONFIG');
+
+    if (!configSheet) {
+      Logger.log('⚠️ Onglet _CONFIG introuvable');
+      return '';
+    }
+
+    const password = configSheet.getRange('B3').getValue();
+    return String(password || '').trim();
+  } catch (e) {
+    Logger.log('❌ Erreur getAdminPasswordFromConfig: ' + e.toString());
+    return '';
+  }
+}
+
+/**
+ * Vérifie le mot de passe admin
+ * @param {string} password - Mot de passe à vérifier
+ * @returns {Object} {success: boolean}
+ */
+function verifierMotDePasseAdmin(password) {
+  try {
+    const adminPassword = getAdminPasswordFromConfig();
+
+    if (!adminPassword) {
+      return { success: false, error: 'Mot de passe admin non configuré' };
+    }
+
+    const isValid = String(password || '').trim() === adminPassword;
+
+    return { success: isValid };
+  } catch (e) {
+    Logger.log('❌ Erreur verifierMotDePasseAdmin: ' + e.toString());
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Charge les onglets FIN avec les scores (colonnes U et V)
+ * @returns {Object} {success: boolean, data: Object}
+ */
+function loadFINSheetsWithScores() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const finSheets = ss.getSheets().filter(s => /FIN$/i.test(s.getName()));
+
+    if (finSheets.length === 0) {
+      return { success: false, error: 'Aucun onglet FIN trouvé' };
+    }
+
+    const data = {};
+
+    finSheets.forEach(sheet => {
+      const sheetData = sheet.getDataRange().getValues();
+      if (sheetData.length < 2) return;
+
+      const headers = sheetData[0];
+      const scoreF_idx = 20; // Colonne U (index 20)
+      const scoreM_idx = 21; // Colonne V (index 21)
+
+      const eleves = sheetData.slice(1)
+        .filter(row => row[0] && String(row[0]).trim() !== '')
+        .map(row => {
+          const eleve = {};
+          headers.forEach((header, idx) => {
+            if (header) eleve[header] = row[idx];
+          });
+
+          // Ajouter les scores spécifiques
+          eleve.SCORE_F = row[scoreF_idx] || 0;
+          eleve.SCORE_M = row[scoreM_idx] || 0;
+
+          return eleve;
+        });
+
+      data[sheet.getName()] = { eleves };
+    });
+
+    return { success: true, data };
+  } catch (e) {
+    Logger.log('❌ Erreur loadFINSheetsWithScores: ' + e.toString());
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Met à jour les règles de structure dans _STRUCTURE
+ * @param {Object} newRules - Nouvelles règles {classe: {capacity, quotas}}
+ * @returns {Object} {success: boolean}
+ */
+function updateStructureRules(newRules) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('_STRUCTURE');
+
+    if (!sheet) {
+      return { success: false, error: 'Onglet _STRUCTURE introuvable' };
+    }
+
+    const data = sheet.getDataRange().getValues();
+    if (!data.length) {
+      return { success: false, error: 'Onglet _STRUCTURE vide' };
+    }
+
+    // Trouver la ligne d'en-tête
+    let headerRow = 0;
+    for (let i = 0; i < Math.min(data.length, 10); i++) {
+      const row = data[i].map(v => String(v || '').toUpperCase());
+      if (row.includes('CLASSE_DEST') || row.includes('CLASSE') || row.includes('DESTINATION')) {
+        headerRow = i;
+        break;
+      }
+    }
+
+    const headers = data[headerRow].map(h => String(h || ''));
+    const destIdx = headers.findIndex(h => ['CLASSE_DEST', 'CLASSE', 'DESTINATION'].includes(h.toUpperCase()));
+    const effectifIdx = headers.findIndex(h => h.toUpperCase() === 'EFFECTIF');
+    const optionsIdx = headers.findIndex(h => h.toUpperCase() === 'OPTIONS');
+
+    if (destIdx === -1) {
+      return { success: false, error: 'Colonne CLASSE_DEST introuvable' };
+    }
+
+    // Mettre à jour les règles
+    for (let i = headerRow + 1; i < data.length; i++) {
+      const classe = String(data[i][destIdx] || '').trim();
+      if (!classe || !newRules[classe]) continue;
+
+      const rule = newRules[classe];
+
+      // Mettre à jour la capacité
+      if (effectifIdx !== -1 && rule.capacity !== undefined) {
+        data[i][effectifIdx] = rule.capacity;
+      }
+
+      // Mettre à jour les quotas (format: "OPT1:quota1, OPT2:quota2")
+      if (optionsIdx !== -1 && rule.quotas) {
+        const quotasStr = Object.entries(rule.quotas)
+          .map(([opt, quota]) => `${opt}:${quota}`)
+          .join(', ');
+        data[i][optionsIdx] = quotasStr;
+      }
+    }
+
+    // Écrire les données mises à jour
+    sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+
+    return { success: true };
+  } catch (e) {
+    Logger.log('❌ Erreur updateStructureRules: ' + e.toString());
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Récupère les scores depuis les onglets INT
+ * @returns {Object} {success: boolean, scores: Array}
+ */
+function getINTScores() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const intSheets = ss.getSheets().filter(s => /INT$/i.test(s.getName()));
+
+    if (intSheets.length === 0) {
+      return { success: false, error: 'Aucun onglet INT trouvé' };
+    }
+
+    const scores = [];
+
+    intSheets.forEach(sheet => {
+      const data = sheet.getDataRange().getValues();
+      if (data.length < 2) return;
+
+      const headers = data[0].map(h => String(h || '').toUpperCase());
+      const idIdx = headers.findIndex(h => h.includes('ID') || h.includes('ELEVE'));
+      const mathIdx = headers.findIndex(h => h.includes('MATH') || h === 'M');
+      const frIdx = headers.findIndex(h => h.includes('FR') || h.includes('FRANÇAIS') || h === 'F');
+
+      if (idIdx === -1) return;
+
+      data.slice(1).forEach(row => {
+        const id = String(row[idIdx] || '').trim();
+        if (!id) return;
+
+        scores.push({
+          id,
+          MATH: mathIdx !== -1 ? (Number(row[mathIdx]) || 0) : 0,
+          FR: frIdx !== -1 ? (Number(row[frIdx]) || 0) : 0
+        });
+      });
+    });
+
+    return { success: true, scores };
+  } catch (e) {
+    Logger.log('❌ Erreur getINTScores: ' + e.toString());
+    return { success: false, error: e.toString() };
+  }
+}
