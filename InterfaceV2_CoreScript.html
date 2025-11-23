@@ -1604,23 +1604,48 @@ function updateSaveBadgeUI() {
   }
 }
 
-// ========== FONCTIONS MANQUANTES - Auto-save ==========
+// ========== FONCTIONS MANQUANTES - Auto-save avec débounce intelligent ==========
+
+// Timer pour le débounce intelligent
+let autoSaveDebounceTimer = null;
+
+/**
+ * Démarre l'auto-save avec débounce intelligent
+ * Sauvegarde 30 secondes après la dernière action utilisateur
+ */
 function startAutoSave() {
-  stopAutoSave(); // ← On s'assure qu'il n'y en a qu'un
-  console.log('🔄 Auto-save CACHE activé (1 minute)');
-  autoSaveInterval = setInterval(async () => {
-    // Appeler window.saveImmediateCache qui gère déjà la vérification has_user_action
-    if (typeof window.saveImmediateCache === 'function') {
-      await window.saveImmediateCache();
+  console.log('🔄 Auto-save CACHE activé (débounce 30s après dernière action)');
+
+  // Fonction pour planifier la sauvegarde
+  window.scheduleAutoSave = function() {
+    // Annuler le timer précédent
+    if (autoSaveDebounceTimer) {
+      clearTimeout(autoSaveDebounceTimer);
     }
-  }, 60000); // Toutes les 1 minute
+
+    // Planifier une nouvelle sauvegarde dans 30 secondes
+    autoSaveDebounceTimer = setTimeout(async () => {
+      if (typeof window.saveImmediateCache === 'function') {
+        console.log('⏰ Déclenchement auto-save (30s après dernière action)');
+        await window.saveImmediateCache();
+      }
+    }, 30000); // 30 secondes
+  };
+
+  // Démarrer le premier cycle
+  window.scheduleAutoSave();
 }
 
 function stopAutoSave() {
-  if (autoSaveInterval !== null) { // ← Vérifie l'existence
-    clearInterval(autoSaveInterval);
-    autoSaveInterval = null;
+  if (autoSaveDebounceTimer !== null) {
+    clearTimeout(autoSaveDebounceTimer);
+    autoSaveDebounceTimer = null;
     console.log('⏹️ Auto-save arrêté');
+  }
+
+  // Nettoyer la fonction globale
+  if (window.scheduleAutoSave) {
+    delete window.scheduleAutoSave;
   }
 }
 
@@ -2229,15 +2254,16 @@ const App = {
           mode: STATE.currentMode
         };
 
-        // Sauvegarde locale
+        // Sauvegarde locale (localStorage)
         localStorage.setItem('cache-data', JSON.stringify(cacheData));
 
         if (typeof gsRun === 'function') {
           try {
-            const result = await gsRun('saveCacheData', cacheData);
+            // 🔥 NOUVEAU: Appel à saveDispositionToSheets pour créer les onglets CACHE
+            const result = await gsRun('saveDispositionToSheets', disposition);
 
             if (result && result.success) {
-              console.log('💾 Sauvegarde automatique CACHE réussie');
+              console.log(`💾 Sauvegarde CACHE réussie: ${result.saved} onglets créés`);
 
               // 2. Après succès → on remet le flag à false,
               //    on horodate, on met à jour le badge
@@ -2491,637 +2517,6 @@ window.addEventListener('DOMContentLoaded', (event) => {
     // ❌ SUPPRIMÉ : Gestionnaire dupliqué qui causait la double demande de mot de passe
     // La protection par mot de passe est gérée plus bas (ligne ~4287)
   }
-
-  // =======================================================
-  // 1. GESTION DES OPTIONS DE LISIBILITÉ - ANCIEN PANNEAU PLEIN ÉCRAN (DÉSACTIVÉ)
-  // =======================================================
-  // ⚠️ CE BLOC EST COMPLÈTEMENT DÉSACTIVÉ
-  // L'ancien panneau de lisibilité plein écran (#lisibilite-panel) a été supprimé du HTML
-  // La gestion de la lisibilité est maintenant dans le menu dropdown "Régler" (#dropdownRegler)
-  // Voir le bloc "1.5 GESTION DU MENU RÉGLER (DROPDOWN)" plus bas
-  /*
-  (function() {
-    const toggleBtn = document.getElementById('btnLisibilite');
-    const panel = document.getElementById('lisibilite-panel');
-    const closeBtn = document.getElementById('close-lisibilite-panel');
-    const resetBtn = document.getElementById('reset-lisibilite');
-    const fullscreenBtn = document.getElementById('fullscreen-mode');
-
-    // On vérifie que les éléments critiques existent avant de continuer
-    if (!toggleBtn || !panel || !closeBtn) {
-        console.warn('Certains éléments du panneau de lisibilité sont introuvables. Fonctionnalité désactivée.');
-        return;
-    }
-  
-  // État des options de lisibilité
-  let lisibiliteState = {
-    size: 'medium',
-    style: 'normal',
-    contrast: 'normal',
-    symbols: 'colors',
-    showPrenoms: true,
-    showClasse: true,
-    showScores: true
-  };
-  
-  // Charger les préférences sauvegardées
-  function loadPreferences() {
-    const saved = localStorage.getItem('lisibilite-preferences');
-    if (saved) {
-      lisibiliteState = { ...lisibiliteState, ...JSON.parse(saved) };
-      applyPreferences();
-    }
-  }
-  
-  // Sauvegarder les préférences
-  function savePreferences() {
-    localStorage.setItem('lisibilite-preferences', JSON.stringify(lisibiliteState));
-  }
-  
-  // Appliquer les préférences aux noms (vue normale ET simplifiée)
-  function applyPreferences() {
-    // Vue normale
-    const names = document.querySelectorAll('.student-fullname');
-    names.forEach(name => {
-      name.classList.remove('size-small', 'size-medium', 'size-large', 'size-xlarge');
-      name.classList.remove('style-normal', 'style-bold', 'style-highlight', 'style-outline');
-      name.classList.add(`size-${lisibiliteState.size}`);
-      name.classList.add(`style-${lisibiliteState.style}`);
-      name.style.color = '';
-      name.style.background = '';
-      name.style.fontWeight = '';
-      // Contraste élevé/max : forcer noir/blanc, sinon laisser couleur par défaut
-      if (lisibiliteState.contrast === 'high' || lisibiliteState.contrast === 'max') {
-        name.style.color = '#000';
-        name.style.textShadow = lisibiliteState.contrast === 'max'
-          ? '2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff'
-          : '1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff';
-        name.style.fontWeight = '900';
-      } else {
-        name.style.color = '';
-        name.style.textShadow = '';
-      }
-      // Style highlight/outline
-      if (lisibiliteState.style === 'highlight') {
-        name.style.background = '#fef3c7';
-      }
-      if (lisibiliteState.style === 'outline') {
-        name.style.border = '2px solid #3b82f6';
-        name.style.borderRadius = '3px';
-      } else {
-        name.style.border = '';
-        name.style.borderRadius = '';
-      }
-      // Symboles/genres
-      const card = name.closest('.student-card');
-      if (card) {
-        card.classList.remove('symbols-colors', 'symbols-symbols', 'symbols-both');
-        card.classList.add(`symbols-${lisibiliteState.symbols}`);
-        // Fond blanc forcé si symboles ou contraste, sinon couleur par défaut
-        if (lisibiliteState.symbols !== 'colors' || lisibiliteState.contrast !== 'normal') {
-          card.style.background = '#fff';
-          card.style.borderColor = '#bbb';
-        } else {
-          card.style.background = '';
-          card.style.borderColor = '';
-        }
-      }
-    });
-    // Vue simplifiée
-    const simpleNames = document.querySelectorAll('.student-simple-name');
-    simpleNames.forEach(name => {
-      name.style.fontSize =
-        lisibiliteState.size === 'small' ? '0.75rem' :
-        lisibiliteState.size === 'medium' ? '0.95rem' :
-        lisibiliteState.size === 'large' ? '1.15rem' :
-        '1.35rem';
-      name.style.fontWeight = lisibiliteState.style === 'bold' ? '700' :
-        lisibiliteState.style === 'highlight' ? '700' :
-        lisibiliteState.style === 'outline' ? '700' :
-        '600';
-      name.style.background = lisibiliteState.style === 'highlight' ? '#fef3c7' : '';
-      name.style.border = lisibiliteState.style === 'outline' ? '2px solid #3b82f6' : '';
-      name.style.borderRadius = lisibiliteState.style === 'outline' ? '3px' : '';
-      // En mode simplifié, toujours fond blanc et police noire
-      name.style.color = '#000';
-      name.style.textShadow = '';
-      name.style.fontWeight = '900';
-      const card = name.closest('.student-card');
-      if (card) {
-        card.classList.remove('symbols-colors', 'symbols-symbols', 'symbols-both');
-        card.classList.add(`symbols-${lisibiliteState.symbols}`);
-        card.style.background = '#fff';
-        card.style.borderColor = '#bbb';
-      }
-    });
-    // Appliquer le contraste au body
-    document.body.classList.remove('contrast-high', 'contrast-max');
-    if (lisibiliteState.contrast !== 'normal') {
-      document.body.classList.add(`contrast-${lisibiliteState.contrast}`);
-    }
-    // Appliquer les symboles aux cartes (vue normale)
-    const cards = document.querySelectorAll('.student-card');
-    cards.forEach(card => {
-      card.classList.remove('symbols-colors', 'symbols-symbols', 'symbols-both');
-      card.classList.add(`symbols-${lisibiliteState.symbols}`);
-      // Fond blanc forcé si symboles ou contraste, sinon couleur par défaut
-      if (lisibiliteState.symbols !== 'colors' || lisibiliteState.contrast !== 'normal') {
-        card.style.background = '#fff';
-        card.style.borderColor = '#bbb';
-      } else {
-        card.style.background = '';
-        card.style.borderColor = '';
-      }
-    });
-
-    // Gérer l'affichage des prénoms (nom seul si décochée)
-    const allNames = document.querySelectorAll('.student-fullname, .student-simple-name');
-    allNames.forEach(nameEl => {
-      const card = nameEl.closest('.student-card');
-      if (!card || !card.dataset.id) return;
-
-      const eleve = STATE.students[card.dataset.id];
-      if (!eleve) return;
-
-      if (lisibiliteState.showPrenoms) {
-        // Afficher nom + prénom SIMPLIFIÉ VERSION 4.0
-        nameEl.textContent = simplifierNomComplet(eleve.nom, eleve.prenom);
-      } else {
-        // Afficher nom uniquement
-        nameEl.textContent = eleve.nom;
-      }
-    });
-
-    // Gérer l'affichage de la classe d'origine
-    const sourceElements = document.querySelectorAll('.source-class');
-    sourceElements.forEach(el => {
-      el.style.display = lisibiliteState.showClasse ? '' : 'none';
-    });
-
-    // Gérer l'affichage des badges de scores
-    const scoresElements = document.querySelectorAll('.scores');
-    scoresElements.forEach(el => {
-      el.style.display = lisibiliteState.showScores ? '' : 'none';
-    });
-
-    updateActiveButtons();
-    updateCheckboxes();
-  }
-  
-  // Mettre à jour les boutons actifs
-  function updateActiveButtons() {
-    document.querySelectorAll('.btn-lisibilite').forEach(btn => {
-      btn.classList.remove('active');
-    });
-    
-    document.querySelectorAll(`[data-size="${lisibiliteState.size}"]`).forEach(btn => btn.classList.add('active'));
-    document.querySelectorAll(`[data-style="${lisibiliteState.style}"]`).forEach(btn => btn.classList.add('active'));
-    document.querySelectorAll(`[data-contrast="${lisibiliteState.contrast}"]`).forEach(btn => btn.classList.add('active'));
-    document.querySelectorAll(`[data-symbols="${lisibiliteState.symbols}"]`).forEach(btn => btn.classList.add('active'));
-  }
-
-  // Mettre à jour les checkboxes
-  function updateCheckboxes() {
-    const prenomsCheckbox = document.getElementById('toggle-prenoms');
-    const classeCheckbox = document.getElementById('toggle-classe');
-    const scoresCheckbox = document.getElementById('toggle-scores');
-
-    if (prenomsCheckbox) prenomsCheckbox.checked = lisibiliteState.showPrenoms;
-    if (classeCheckbox) classeCheckbox.checked = lisibiliteState.showClasse;
-    if (scoresCheckbox) scoresCheckbox.checked = lisibiliteState.showScores;
-  }
-
-  // Gestion des clics sur les boutons d'options
-  document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('btn-lisibilite')) {
-      const type = e.target.dataset.size || e.target.dataset.style || e.target.dataset.contrast || e.target.dataset.symbols;
-      const category = e.target.dataset.size ? 'size' : e.target.dataset.style ? 'style' : e.target.dataset.contrast ? 'contrast' : 'symbols';
-      
-      lisibiliteState[category] = type;
-      applyPreferences();
-      savePreferences();
-    }
-  });
-
-  // Gestion des checkboxes pour affichage
-  const prenomsCheckbox = document.getElementById('toggle-prenoms');
-  const classeCheckbox = document.getElementById('toggle-classe');
-  const scoresCheckbox = document.getElementById('toggle-scores');
-
-  if (prenomsCheckbox) {
-    prenomsCheckbox.addEventListener('change', (e) => {
-      lisibiliteState.showPrenoms = e.target.checked;
-      applyPreferences();
-      savePreferences();
-    });
-  }
-
-  if (classeCheckbox) {
-    classeCheckbox.addEventListener('change', (e) => {
-      lisibiliteState.showClasse = e.target.checked;
-      applyPreferences();
-      savePreferences();
-    });
-  }
-
-  if (scoresCheckbox) {
-    scoresCheckbox.addEventListener('change', (e) => {
-      lisibiliteState.showScores = e.target.checked;
-      applyPreferences();
-      savePreferences();
-    });
-  }
-
-  // Gestion de l'ouverture/fermeture du panneau
-  if (toggleBtn && panel && closeBtn) {
-    toggleBtn.addEventListener('click', () => {
-      panel.classList.remove('-translate-y-full');
-      panel.classList.add('translate-y-0');
-    });
-    closeBtn.addEventListener('click', () => {
-      panel.classList.remove('translate-y-0');
-      panel.classList.add('-translate-y-full');
-    });
-  }
-  
-  // Réinitialiser les options
-  if (resetBtn) {
-    resetBtn.addEventListener('click', () => {
-      lisibiliteState = {
-        size: 'medium',
-        style: 'normal',
-        contrast: 'normal',
-        symbols: 'colors',
-        showPrenoms: true,
-        showClasse: true,
-        showScores: true
-      };
-      applyPreferences();
-      savePreferences();
-    });
-  }
-  
-  // Mode plein écran
-  if (fullscreenBtn) {
-    fullscreenBtn.addEventListener('click', async () => {
-      try {
-        if (document.fullscreenElement) {
-          await document.exitFullscreen();
-        } else {
-          await document.documentElement.requestFullscreen();
-        }
-      } catch (error) {
-        console.error('Erreur mode plein écran:', error);
-        toast('Erreur mode plein écran. Vérifiez les permissions du navigateur.', 'error');
-      }
-    });
-    
-    // Gestion des événements fullscreen pour mettre à jour le bouton
-    document.addEventListener('fullscreenchange', () => {
-      if (document.fullscreenElement) {
-        fullscreenBtn.innerHTML = '<i class="fas fa-compress"></i> Quitter plein écran';
-        document.body.classList.add('fullscreen-mode');
-      } else {
-        fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i> Mode plein écran';
-        document.body.classList.remove('fullscreen-mode');
-      }
-    });
-  }
-  
-  // Charger les préférences au démarrage
-  loadPreferences();
-  
-  // Appliquer les préférences quand de nouveaux élèves sont chargés
-  const originalRenderBoard = window.renderBoard;
-  if (originalRenderBoard) {
-    window.renderBoard = function(...args) {
-      const result = originalRenderBoard.apply(this, args);
-      setTimeout(applyPreferences, 100); // Appliquer après le rendu
-      return result;
-    };
-  }
-
-  // Appliquer les préférences après chaque bascule de vue
-  window.applyLisibilitePreferences = applyPreferences;
-  })();
-  */
-  // FIN DU BLOC ANCIEN PANNEAU DE LISIBILITÉ (DÉSACTIVÉ)
-
-  // =======================================================
-  // 1.5 GESTION DU MENU RÉGLER (DROPDOWN) - ANCIEN BLOC DÉSACTIVÉ
-  // =======================================================
-  // ⚠️ CE BLOC EST DÉSACTIVÉ - La gestion du menu Régler est maintenant
-  // dans le bloc "1.5 GESTION DU MENU RÉGLER (DROPDOWN)" plus bas
-  // avec animations et fermeture sélective des autres dropdowns
-  /*
-  (function() {
-    const btnRegler = document.getElementById('btnRegler');
-    const dropdown = document.getElementById('dropdownRegler');
-    
-    if (!btnRegler || !dropdown) {
-      console.warn('Menu Régler non trouvé');
-      return;
-    }
-    
-    // Toggle dropdown avec positionnement dynamique
-    btnRegler.addEventListener('click', (e) => {
-      e.stopPropagation();
-      
-      // Positionner le dropdown sous le bouton
-      const rect = btnRegler.getBoundingClientRect();
-      dropdown.style.top = `${rect.bottom + 8}px`;
-      dropdown.style.left = `${rect.left}px`;
-      
-      dropdown.classList.toggle('hidden');
-    });
-    
-    // Empêcher la fermeture au clic interne
-    dropdown.addEventListener('click', (e) => {
-      e.stopPropagation();
-    });
-    
-    // Fermer au clic extérieur
-    document.addEventListener('click', (e) => {
-      if (!dropdown.contains(e.target) && e.target !== btnRegler) {
-        dropdown.classList.add('hidden');
-      }
-    });
-    
-    // Fermer avec la touche Échap (accessibilité clavier)
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !dropdown.classList.contains('hidden')) {
-        dropdown.classList.add('hidden');
-        console.log('⌨️ Menu Régler fermé via Échap');
-      }
-    });
-    
-    // Fonction toggle section accordéon
-    window.toggleSection = function(sectionId) {
-      const section = document.getElementById(sectionId);
-      const icon = document.getElementById(sectionId + 'Icon');
-      
-      if (section && icon) {
-        section.classList.toggle('hidden');
-        icon.classList.toggle('rotate-180');
-      }
-    };
-    
-    // Gestion des radio buttons avec style visuel
-    const radioLabels = dropdown.querySelectorAll('label[data-size], label[data-style], label[data-contrast], label[data-gender]');
-    radioLabels.forEach(label => {
-      label.addEventListener('click', function() {
-        const input = this.querySelector('input[type="radio"]');
-        if (!input) return;
-        
-        const name = input.name;
-        
-        // Retirer le style actif de tous les labels du même groupe
-        dropdown.querySelectorAll(`input[name="${name}"]`).forEach(radio => {
-          const parentLabel = radio.closest('label');
-          if (parentLabel) {
-            parentLabel.classList.remove('bg-blue-50', 'border-blue-500');
-            const span = parentLabel.querySelector('span');
-            if (span) span.classList.remove('text-blue-700');
-          }
-        });
-        
-        // Ajouter le style actif à celui-ci
-        this.classList.add('bg-blue-50', 'border-blue-500');
-        const span = this.querySelector('span');
-        if (span) span.classList.add('text-blue-700');
-        
-        // Cocher le radio
-        input.checked = true;
-        
-        // Appliquer les changements
-        applyReglerSettings();
-      });
-    });
-    
-    // Fonction pour appliquer les préférences de lisibilité
-    window.applyLisibilitePreferences = function() {
-      const saved = localStorage.getItem('lisibilite-preferences');
-      if (!saved) return;
-      
-      const prefs = JSON.parse(saved);
-      
-      // Appliquer la taille des noms
-      document.querySelectorAll('.student-card').forEach(card => {
-        card.classList.remove('font-size-small', 'font-size-medium', 'font-size-large', 'font-size-xlarge');
-        card.classList.add(`font-size-${prefs.size || 'medium'}`);
-      });
-      
-      // Appliquer le style
-      document.querySelectorAll('.student-card').forEach(card => {
-        card.classList.remove('font-style-normal', 'font-style-bold', 'font-style-highlight', 'font-style-outline');
-        card.classList.add(`font-style-${prefs.style || 'normal'}`);
-      });
-      
-      // Appliquer le contraste
-      document.body.classList.remove('contrast-normal', 'contrast-high', 'contrast-max');
-      document.body.classList.add(`contrast-${prefs.contrast || 'normal'}`);
-      
-      // Appliquer l'affichage des genres
-      document.querySelectorAll('.student-card').forEach(card => {
-        card.classList.remove('gender-colors', 'gender-symbols', 'gender-both');
-        card.classList.add(`gender-${prefs.symbols || 'colors'}`);
-      });
-      
-      // Afficher/masquer les prénoms
-      document.querySelectorAll('.student-card .student-fullname').forEach(el => {
-        el.style.display = prefs.showPrenoms ? '' : 'none';
-      });
-      
-      // Afficher/masquer la classe d'origine
-      document.querySelectorAll('.student-card .source-class').forEach(el => {
-        el.style.display = prefs.showClasse ? '' : 'none';
-      });
-      
-      // Afficher/masquer les scores
-      document.querySelectorAll('.student-card .scores').forEach(el => {
-        el.style.display = prefs.showScores ? '' : 'none';
-      });
-    };
-    
-    // Appliquer les réglages - UTILISE LA FONCTION EXISTANTE
-    function applyReglerSettings() {
-      // Récupérer les valeurs
-      const fontSize = dropdown.querySelector('input[name="fontSize"]:checked')?.value || 'medium';
-      const fontStyle = dropdown.querySelector('input[name="fontStyle"]:checked')?.value || 'normal';
-      const contrast = dropdown.querySelector('input[name="contrast"]:checked')?.value || 'normal';
-      const genderDisplay = dropdown.querySelector('input[name="genderDisplay"]:checked')?.value || 'colors';
-      const showPrenoms = document.getElementById('showPrenoms')?.checked ?? true;
-      const showClasse = document.getElementById('showClasseOrigine')?.checked ?? true;
-      const showScores = document.getElementById('showScores')?.checked ?? true;
-      
-      // Sauvegarder les préférences
-      const lisibiliteState = {
-        size: fontSize,
-        style: fontStyle,
-        contrast: contrast,
-        symbols: genderDisplay,
-        showPrenoms: showPrenoms,
-        showClasse: showClasse,
-        showScores: showScores
-      };
-      localStorage.setItem('lisibilite-preferences', JSON.stringify(lisibiliteState));
-      
-      // Appliquer via la fonction existante
-      if (window.applyLisibilitePreferences) {
-        window.applyLisibilitePreferences();
-      }
-    }
-    
-    // Connecter les checkboxes Afficher
-    ['showPrenoms', 'showClasseOrigine', 'showScores'].forEach(id => {
-      const checkbox = document.getElementById(id);
-      if (checkbox) {
-        checkbox.addEventListener('change', applyReglerSettings);
-      }
-    });
-    
-    // Préréglages
-    document.getElementById('presetProjection')?.addEventListener('click', () => {
-      // Mode Projection : M, Gras, Symbole, Fond blanc
-      setRadioValue('fontSize', 'medium');
-      setRadioValue('fontStyle', 'bold');
-      setRadioValue('genderDisplay', 'symbols');
-      const whiteBackground = document.getElementById('whiteBackground');
-      if (whiteBackground) {
-        whiteBackground.checked = true;
-        whiteBackground.dispatchEvent(new Event('change'));
-      }
-      applyReglerSettings();
-      toast('📽️ Mode Projection activé', 'success');
-    });
-    
-    document.getElementById('presetImpression')?.addEventListener('click', () => {
-      // Mode Impression : S, Normal, Couleurs
-      setRadioValue('fontSize', 'small');
-      setRadioValue('fontStyle', 'normal');
-      setRadioValue('contrast', 'normal');
-      setRadioValue('genderDisplay', 'colors');
-      const whiteBackground = document.getElementById('whiteBackground');
-      if (whiteBackground) {
-        whiteBackground.checked = false;
-        whiteBackground.dispatchEvent(new Event('change'));
-      }
-      applyReglerSettings();
-      toast('🖨️ Mode Impression activé', 'success');
-    });
-    
-    document.getElementById('presetAccessibilite')?.addEventListener('click', () => {
-      // Mode Accessibilité : XL, Gras, Contraste Max, Symboles
-      setRadioValue('fontSize', 'xlarge');
-      setRadioValue('fontStyle', 'bold');
-      setRadioValue('contrast', 'max');
-      setRadioValue('genderDisplay', 'both');
-      applyReglerSettings();
-      toast('♿ Mode Accessibilité activé', 'success');
-    });
-    
-    // Réinitialiser
-    document.getElementById('btnResetReglages')?.addEventListener('click', () => {
-      setRadioValue('fontSize', 'medium');
-      setRadioValue('fontStyle', 'normal');
-      setRadioValue('contrast', 'normal');
-      setRadioValue('genderDisplay', 'colors');
-      
-      const showGenderBadges = document.getElementById('showGenderBadges');
-      if (showGenderBadges) {
-        showGenderBadges.checked = false;
-        showGenderBadges.dispatchEvent(new Event('change'));
-      }
-      
-      const whiteBackground = document.getElementById('whiteBackground');
-      if (whiteBackground) {
-        whiteBackground.checked = false;
-        whiteBackground.dispatchEvent(new Event('change'));
-      }
-      
-      document.getElementById('showPrenoms').checked = true;
-      document.getElementById('showClasseOrigine').checked = true;
-      document.getElementById('showScores').checked = true;
-      
-      applyReglerSettings();
-      toast('🔄 Réglages réinitialisés', 'info');
-    });
-    
-    // Plein écran
-    document.getElementById('btnPleinEcran')?.addEventListener('click', () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen();
-        toast('⛶ Mode plein écran activé', 'info');
-      } else {
-        document.exitFullscreen();
-        toast('⛶ Mode plein écran désactivé', 'info');
-      }
-    });
-    
-    // Mode sombre
-    document.getElementById('btnModeSombre')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      document.body.classList.toggle('dark-mode');
-      const isDark = document.body.classList.contains('dark-mode');
-      localStorage.setItem('darkMode', isDark);
-      toast(isDark ? '🌙 Mode sombre activé' : '☀️ Mode clair activé', 'info');
-    });
-    
-    // Zoom cartes
-    document.getElementById('btnZoomCartes')?.addEventListener('click', () => {
-      const cards = document.querySelectorAll('.student-card');
-      const isZoomed = cards[0]?.style.transform === 'scale(1.1)';
-      cards.forEach(card => {
-        card.style.transform = isZoomed ? '' : 'scale(1.1)';
-        card.style.transition = 'transform 0.2s';
-      });
-      toast(isZoomed ? '🔍 Zoom désactivé' : '🔍 Zoom activé', 'info');
-    });
-    
-    // Helper pour définir un radio
-    function setRadioValue(name, value) {
-      const radio = dropdown.querySelector(`input[name="${name}"][value="${value}"]`);
-      if (radio) {
-        radio.checked = true;
-        const label = radio.closest('label');
-        if (label) {
-          // Retirer actif des autres
-          dropdown.querySelectorAll(`input[name="${name}"]`).forEach(r => {
-            const l = r.closest('label');
-            if (l) {
-              l.classList.remove('bg-blue-50', 'border-blue-500');
-              const s = l.querySelector('span');
-              if (s) s.classList.remove('text-blue-700');
-            }
-          });
-          // Ajouter actif à celui-ci
-          label.classList.add('bg-blue-50', 'border-blue-500');
-          const span = label.querySelector('span');
-          if (span) span.classList.add('text-blue-700');
-        }
-      }
-    }
-    
-    // Charger les préférences au démarrage
-    const saved = localStorage.getItem('lisibilite-preferences');
-    if (saved) {
-      const prefs = JSON.parse(saved);
-      setRadioValue('fontSize', prefs.size || 'medium');
-      setRadioValue('fontStyle', prefs.style || 'normal');
-      setRadioValue('contrast', prefs.contrast || 'normal');
-      setRadioValue('genderDisplay', prefs.symbols || 'colors');
-    }
-    
-    // Charger mode sombre (désactivé par défaut)
-    // Le mode sombre ne doit s'activer que si explicitement demandé
-    // if (localStorage.getItem('darkMode') === 'true') {
-    //   document.body.classList.add('dark-mode');
-    // }
-    
-    console.log('✅ Menu Régler (dropdown) initialisé');
-  })();
-  */
-
   // =======================================================
   // 1.4.5 FONCTION GLOBALE POUR ANIMATIONS DES DROPDOWNS
   // =======================================================
@@ -6840,14 +6235,6 @@ function initializeEnhancements() {
 
   // ========== ANCIEN TUTORIEL DÉSACTIVÉ ==========
   // Remplacé par OnboardingTour.autoStart() dans InterfaceV2_UIModules_Loader.html
-  // if (!localStorage.getItem('hasSeenTutorial')) {
-  //   setTimeout(() => {
-  //     if (confirm('Première visite ? Voulez-vous voir le tutoriel interactif ?')) {
-  //       showTutorial();
-  //     }
-  //     localStorage.setItem('hasSeenTutorial', 'true');
-  //   }, 2000);
-  // }
 }
 // ... existing code ...
 // À la fin du DOMContentLoaded, après setupEventListeners() et openStartupModal();
@@ -9620,10 +9007,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
   console.log('🚀 Initialisation unique de l\'application (DOMContentLoaded #2)');
 
-  // ❌ DÉSACTIVÉ: EventManager.clear() peut supprimer les event listeners du modal !
-  // if (window.EventManager) {
-  //   window.EventManager.clear();
-  // }
   console.log('⚠️ EventManager.clear() DÉSACTIVÉ pour préserver les event listeners du modal');
 
   // Attendre que tout soit chargé

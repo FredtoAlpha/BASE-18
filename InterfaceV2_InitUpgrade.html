@@ -48,6 +48,11 @@
   window.markUserAction = function () {
     window.STATE.has_user_action = true;
     console.log('✏️ Action utilisateur marquée');
+
+    // 🔥 NOUVEAU: Redémarrer le timer de débounce (30s après dernière action)
+    if (typeof window.scheduleAutoSave === 'function') {
+      window.scheduleAutoSave();
+    }
   };
 
   // -- Monkey-patch : on enveloppe saveCacheData() si dispo --

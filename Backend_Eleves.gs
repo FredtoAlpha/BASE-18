@@ -366,6 +366,62 @@ function loadCacheData() {
 }
 
 /**
+ * Sauvegarde la disposition dans les onglets Google Sheets (création des onglets CACHE)
+ * @param {Object} disposition - Objet {className: {headers: [], students: []}}
+ * @returns {Object} {success: boolean, saved: number, timestamp: string}
+ */
+function saveDispositionToSheets(disposition) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let savedCount = 0;
+
+    for (const className in disposition) {
+      const classData = disposition[className];
+
+      // Nom de l'onglet CACHE (ex: "5°1 TEST" -> "5°1 CACHE")
+      const cacheSheetName = className.replace(/(TEST|FIN|PREVIOUS)$/i, 'CACHE');
+
+      // Créer ou obtenir l'onglet CACHE
+      let cacheSheet = ss.getSheetByName(cacheSheetName);
+      if (!cacheSheet) {
+        cacheSheet = ss.insertSheet(cacheSheetName);
+        Logger.log(`✅ Onglet créé: ${cacheSheetName}`);
+      } else {
+        cacheSheet.clearContents();
+        Logger.log(`🔄 Onglet vidé: ${cacheSheetName}`);
+      }
+
+      // Écrire les données
+      if (classData.headers && classData.students) {
+        const allRows = [classData.headers, ...classData.students];
+        if (allRows.length > 0 && classData.headers.length > 0) {
+          cacheSheet.getRange(1, 1, allRows.length, classData.headers.length)
+            .setValues(allRows);
+          savedCount++;
+        }
+      }
+    }
+
+    SpreadsheetApp.flush();
+
+    Logger.log(`💾 Sauvegarde réussie: ${savedCount} onglets CACHE créés/mis à jour`);
+
+    return {
+      success: true,
+      saved: savedCount,
+      timestamp: new Date().toISOString()
+    };
+
+  } catch (e) {
+    Logger.log(`❌ Erreur saveDispositionToSheets: ${e.toString()}`);
+    return {
+      success: false,
+      error: e.toString()
+    };
+  }
+}
+
+/**
  * Récupère et efface le contexte du pont depuis ConsolePilotage
  * @returns {Object} {success: boolean, context: Object}
  */
@@ -373,14 +429,14 @@ function getBridgeContextAndClear() {
   try {
     const props = PropertiesService.getUserProperties();
     const context = props.getProperty('JULES_CONTEXT');
-    
+
     if (!context) {
       return { success: true, context: null };
     }
-    
+
     // Effacer après lecture
     props.deleteProperty('JULES_CONTEXT');
-    
+
     return { success: true, context: JSON.parse(context) };
   } catch (e) {
     return { success: false, error: e.toString() };

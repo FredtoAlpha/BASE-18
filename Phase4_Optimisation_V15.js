@@ -1561,16 +1561,57 @@ function respecteContraintes(e1, e2, allStudents, structureData, optionsNiveauDa
         }
     }
     
-    if (dissocKeyE2Trimmed) { 
+    if (dissocKeyE2Trimmed) {
         const dissocInDest2 = dissocMap[e1.CLASSE];
-        if (dissocInDest2 instanceof Set && 
-            dissocInDest2.has(dissocKeyE2Trimmed) && 
+        if (dissocInDest2 instanceof Set &&
+            dissocInDest2.has(dissocKeyE2Trimmed) &&
             dissocKeyE1Trimmed !== dissocKeyE2Trimmed) {
             Logger.log(`respecteContraintes: REJET e2 - Contrainte DISSO '${dissocKeyE2Trimmed}' vers ${e1.CLASSE}.`);
-            return false; 
+            return false;
         }
     }
-    
+
+    // ========== VÉRIFICATION DES ASSOCIATIONS (codes A/ASSO) ==========
+    // Empêche la séparation d'élèves qui doivent rester ensemble
+    const assoKeyE1 = e1.ASSO ? String(e1.ASSO).trim().toUpperCase() : null;
+    const assoKeyE2 = e2.ASSO ? String(e2.ASSO).trim().toUpperCase() : null;
+
+    // RÈGLE 1 : Interdire swap entre élèves du MÊME groupe ASSO
+    // (car cela ne ferait que les déplacer ensemble sans améliorer la distribution)
+    if (assoKeyE1 && assoKeyE2 && assoKeyE1 === assoKeyE2) {
+        Logger.log(`respecteContraintes: REJET - Swap entre membres du même groupe ASSO '${assoKeyE1}' (doit rester ensemble).`);
+        return false;
+    }
+
+    // RÈGLE 2 : Si e1 a un code ASSO, vérifier qu'aucun autre membre de son groupe
+    // ne se trouve déjà dans la classe de destination (e2.CLASSE)
+    if (assoKeyE1 && classesMap) {
+        const destClass = classesMap[e2.CLASSE] || [];
+        const hasAssoInDest = destClass.some(function(e) {
+            const assoKey = e.ASSO ? String(e.ASSO).trim().toUpperCase() : null;
+            return assoKey && assoKey === assoKeyE1 && String(e.ID_ELEVE).trim() !== String(e1.ID_ELEVE).trim();
+        });
+
+        if (hasAssoInDest) {
+            Logger.log(`respecteContraintes: REJET e1 - Groupe ASSO '${assoKeyE1}' déjà présent dans classe destination ${e2.CLASSE} (séparation interdite).`);
+            return false;
+        }
+    }
+
+    // RÈGLE 3 : Même vérification pour e2
+    if (assoKeyE2 && classesMap) {
+        const destClass = classesMap[e1.CLASSE] || [];
+        const hasAssoInDest = destClass.some(function(e) {
+            const assoKey = e.ASSO ? String(e.ASSO).trim().toUpperCase() : null;
+            return assoKey && assoKey === assoKeyE2 && String(e.ID_ELEVE).trim() !== String(e2.ID_ELEVE).trim();
+        });
+
+        if (hasAssoInDest) {
+            Logger.log(`respecteContraintes: REJET e2 - Groupe ASSO '${assoKeyE2}' déjà présent dans classe destination ${e1.CLASSE} (séparation interdite).`);
+            return false;
+        }
+    }
+
     Logger.log(`--- respecteContraintes: ACCEPTÉ pour ${e1.ID_ELEVE} et ${e2.ID_ELEVE} ---`);
     return true; 
 }
