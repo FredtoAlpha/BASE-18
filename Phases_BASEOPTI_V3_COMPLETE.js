@@ -346,12 +346,18 @@ function findClassWithoutCodeD_V3(data, headers, codeD, indicesWithD, eleveIdx, 
   const eleveLV2 = eleveIdx ? String(data[eleveIdx][idxLV2] || '').trim().toUpperCase() : '';
   const eleveOPT = eleveIdx ? String(data[eleveIdx][idxOPT] || '').trim().toUpperCase() : '';
 
-  // Classes déjà occupées par ce code DISSO
+  // ✅ BUG FIX: Scanner l'état ACTUEL de data pour trouver les classes avec ce code DISSO
+  // (au lieu de se baser sur indicesWithD qui reflète l'état INITIAL avant les déplacements)
+  const idxDISSO = headers.indexOf('DISSO');
   const classesWithD = new Set();
-  indicesWithD.forEach(function(idx) {
-    const cls = String(data[idx][idxAssigned] || '').trim();
-    if (cls) classesWithD.add(cls);
-  });
+  for (let i = 1; i < data.length; i++) {
+    if (i === eleveIdx) continue; // Ne pas compter l'élève lui-même
+    const rowDisso = String(data[i][idxDISSO] || '').trim().toUpperCase();
+    if (rowDisso === codeD) {
+      const cls = String(data[i][idxAssigned] || '').trim();
+      if (cls) classesWithD.add(cls);
+    }
+  }
 
   // Collecter toutes les classes
   const allClasses = new Set();
