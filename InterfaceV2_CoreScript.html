@@ -555,20 +555,38 @@ function canSwap(id1, id2) {
   const lv2_2 = (eleve2.lv2 || '').toUpperCase();
   const opt_1 = (eleve1.opt || '').toUpperCase();
   const opt_2 = (eleve2.opt || '').toUpperCase();
-  
-  // Cas 1 : Même code D (dissociation)
-  if (eleve1.disso && eleve2.disso && eleve1.disso === eleve2.disso) {
-    console.log(`✅ Swap autorisé: ${eleve1.nom} ↔ ${eleve2.nom} (même code D${eleve1.disso})`);
-    return { ok: true };
+
+  // 🔒 CORRECTION BUG PERMUT/DISSO : Vérifier que le swap ne créera pas de conflit DISSO
+  // Les codes DISSO doivent être SÉPARÉS (pas dans la même classe)
+  const disso1 = (eleve1.disso || '').trim().toUpperCase();
+  const disso2 = (eleve2.disso || '').trim().toUpperCase();
+
+  // Si eleve1 a un code DISSO, vérifier que classe2 (sa future classe) ne contient pas déjà ce code
+  if (disso1) {
+    const studentsInClasse2 = getCurrentClassContent(classe2);
+    for (const studentId of studentsInClasse2) {
+      if (studentId === id2) continue; // Ignorer eleve2 qui va quitter cette classe
+      const otherStudent = STATE.students[studentId];
+      if (!otherStudent) continue;
+      const otherDisso = (otherStudent.disso || '').trim().toUpperCase();
+      if (otherDisso === disso1) {
+        return { ok: false, reason: `Conflit DISSO : ${classe2} contient déjà un élève avec code ${disso1}` };
+      }
+    }
   }
 
-  // ✅ CORRECTION BUG PERMUT/DISSO : Vérifier que les codes DISSO sont identiques
-  // Si l'un a un code DISSO et l'autre non (ou codes différents), swap refusé
-  // Ex: un élève ITA ne peut pas être permuté avec un élève ITA qui a un code D1
-  const disso1 = eleve1.disso || '';
-  const disso2 = eleve2.disso || '';
-  if (disso1 !== disso2) {
-    return { ok: false, reason: `Codes DISSO incompatibles (${disso1 || 'aucun'} vs ${disso2 || 'aucun'})` };
+  // Si eleve2 a un code DISSO, vérifier que classe1 (sa future classe) ne contient pas déjà ce code
+  if (disso2) {
+    const studentsInClasse1 = getCurrentClassContent(classe1);
+    for (const studentId of studentsInClasse1) {
+      if (studentId === id1) continue; // Ignorer eleve1 qui va quitter cette classe
+      const otherStudent = STATE.students[studentId];
+      if (!otherStudent) continue;
+      const otherDisso = (otherStudent.disso || '').trim().toUpperCase();
+      if (otherDisso === disso2) {
+        return { ok: false, reason: `Conflit DISSO : ${classe1} contient déjà un élève avec code ${disso2}` };
+      }
+    }
   }
 
   // Cas 2 : Même LV2 ET même OPT (ou pas d'OPT)
@@ -601,14 +619,8 @@ function canSwap(id1, id2) {
     const lv1 = (eleve1.lv2 || '').toUpperCase();
     const lv2 = (eleve2.lv2 || '').toUpperCase();
 
-    // ✅ CORRECTION BUG PERMUT/DISSO : Vérifier que les codes DISSO sont identiques
-    // Deux élèves PERMUT ne sont permutables que s'ils ont le même code DISSO
-    // Ex: deux D1 peuvent se permuter entre eux, mais un D1 ne peut pas se permuter avec un ITA
-    const permutDisso1 = eleve1.disso || '';
-    const permutDisso2 = eleve2.disso || '';
-    if (permutDisso1 !== permutDisso2) {
-      return { ok: false, reason: `PERMUT : codes DISSO incompatibles (${permutDisso1 || 'aucun'} vs ${permutDisso2 || 'aucun'})` };
-    }
+    // ✅ La vérification DISSO a déjà été effectuée ci-dessus (lignes 559-590)
+    // Pas besoin de la refaire ici
 
     if (lv1 === 'ESP' || lv2 === 'ESP') {
       return { ok: true };
