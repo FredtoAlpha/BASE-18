@@ -264,7 +264,17 @@ function Phase2I_applyDissoAsso_BASEOPTI_V3(ctx) {
             data[idx][idxAssigned] = targetClass;
             logLine('INFO', '      ✅ ' + data[idx][idxNom] + ' : ' + cls + ' → ' + targetClass + ' (séparation D=' + code + ')');
           } else {
-            logLine('WARN', '      ⚠️ ' + data[idx][idxNom] + ' reste en ' + cls + ' (contrainte LV2/OPT absolue)');
+            // ❌ Déplacement simple impossible → essayer un SWAP
+            logLine('INFO', '      🔄 Tentative de SWAP pour ' + data[idx][idxNom] + ' (D=' + code + ')');
+
+            const swapResult = findAndSwapForDisso_V3(data, headers, idx, code, cls, groupsD[code], ctx);
+
+            if (swapResult.success) {
+              logLine('INFO', '      ✅ SWAP réussi : ' + data[idx][idxNom] + ' ↔ ' + data[swapResult.swappedIdx][idxNom]);
+              dissoMoved += 2; // Compter les 2 élèves swappés
+            } else {
+              logLine('WARN', '      ⚠️ ' + data[idx][idxNom] + ' reste en ' + cls + ' (' + swapResult.reason + ')');
+            }
           }
         }
       }
@@ -326,9 +336,103 @@ function findLeastPopulatedClass_V3(data, headers, ctx) {
 }
 
 /**
+ * 🔄 SWAP DISSO : Trouve un élève compatible pour échanger et résoudre un conflit DISSO
+ * Cherche un élève dans une autre classe qui :
+ * - N'a pas le code DISSO problématique
+ * - A la même LV2/OPT (pour respecter les quotas)
+ * - Peut être placé dans la classe source sans créer de nouveau conflit
+ *
+ * @param {Array} data - Données _BASEOPTI
+ * @param {Array} headers - En-têtes
+ * @param {number} eleveIdx - Index de l'élève à déplacer
+ * @param {string} codeD - Code DISSO à séparer
+ * @param {string} sourceClass - Classe source (où il y a le doublon)
+ * @param {Array} indicesWithD - Tous les indices des élèves avec ce code DISSO
+ * @param {Object} ctx - Contexte avec quotas
+ * @returns {Object} { success: boolean, swappedIdx: number|null, reason: string }
+ */
+function findAndSwapForDisso_V3(data, headers, eleveIdx, codeD, sourceClass, indicesWithD, ctx) {
+  const idxAssigned = headers.indexOf('_CLASS_ASSIGNED');
+  const idxLV2 = headers.indexOf('LV2');
+  const idxOPT = headers.indexOf('OPT');
+  const idxD = headers.indexOf('DISSO');
+  const idxNom = headers.indexOf('NOM');
+
+  // Récupérer LV2/OPT de l'élève à déplacer
+  const eleveLV2 = String(data[eleveIdx][idxLV2] || '').trim().toUpperCase();
+  const eleveOPT = String(data[eleveIdx][idxOPT] || '').trim().toUpperCase();
+  const eleveCodeD = String(data[eleveIdx][idxD] || '').trim().toUpperCase();
+
+  // Classes déjà occupées par ce code DISSO
+  const classesWithD = new Set();
+  indicesWithD.forEach(function(idx) {
+    const cls = String(data[idx][idxAssigned] || '').trim();
+    if (cls) classesWithD.add(cls);
+  });
+
+  // Parcourir toutes les classes (sauf la classe source)
+  const allClasses = new Set();
+  for (let i = 1; i < data.length; i++) {
+    const cls = String(data[i][idxAssigned] || '').trim();
+    if (cls && cls !== sourceClass) {
+      allClasses.add(cls);
+    }
+  }
+
+  // Chercher un élève compatible dans une autre classe
+  for (const targetClass of Array.from(allClasses)) {
+    // Skip les classes qui ont déjà ce code D
+    if (classesWithD.has(targetClass)) continue;
+
+    // Chercher un élève dans cette classe qui peut être swappé
+    for (let i = 1; i < data.length; i++) {
+      const candidateClass = String(data[i][idxAssigned] || '').trim();
+      if (candidateClass !== targetClass) continue;
+
+      const candidateLV2 = String(data[i][idxLV2] || '').trim().toUpperCase();
+      const candidateOPT = String(data[i][idxOPT] || '').trim().toUpperCase();
+      const candidateCodeD = String(data[i][idxD] || '').trim().toUpperCase();
+
+      // Le candidat doit avoir la même LV2/OPT
+      if (candidateLV2 !== eleveLV2 || candidateOPT !== eleveOPT) continue;
+
+      // Le candidat ne doit pas avoir le code D problématique
+      if (candidateCodeD === codeD) continue;
+
+      // Vérifier si le candidat peut être placé dans la classe source
+      // (pas de conflit DISSO avec son propre code D dans la classe source)
+      if (candidateCodeD) {
+        let conflict = false;
+        for (let j = 1; j < data.length; j++) {
+          if (j === i || j === eleveIdx) continue; // Skip le candidat lui-même et l'élève à déplacer
+          const otherClass = String(data[j][idxAssigned] || '').trim();
+          const otherCodeD = String(data[j][idxD] || '').trim().toUpperCase();
+          if (otherClass === sourceClass && otherCodeD === candidateCodeD) {
+            conflict = true;
+            break;
+          }
+        }
+        if (conflict) continue;
+      }
+
+      // ✅ Candidat trouvé ! Faire le swap
+      data[eleveIdx][idxAssigned] = targetClass;
+      data[i][idxAssigned] = sourceClass;
+
+      logLine('INFO', '        🔄 ' + data[eleveIdx][idxNom] + ' (D=' + eleveCodeD + ') ' + sourceClass + ' → ' + targetClass);
+      logLine('INFO', '        🔄 ' + data[i][idxNom] + ' (D=' + (candidateCodeD || 'aucun') + ') ' + targetClass + ' → ' + sourceClass);
+
+      return { success: true, swappedIdx: i, reason: 'Swap réussi' };
+    }
+  }
+
+  return { success: false, swappedIdx: null, reason: 'Aucun élève compatible pour swap' };
+}
+
+/**
  * 🔒 SÉCURITÉ DISSO : Trouve une classe sans le code DISSO spécifié
  * Vérifie aussi les contraintes LV2/OPT (règle absolue)
- * 
+ *
  * @param {Array} data - Données _BASEOPTI
  * @param {Array} headers - En-têtes
  * @param {string} codeD - Code DISSO à éviter
