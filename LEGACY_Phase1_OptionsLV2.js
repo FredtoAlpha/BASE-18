@@ -51,8 +51,8 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
   let headersRef = data[0];
   
   // ✅ Ajouter colonne _ELEVE_PLACE si absente (pour tracking)
-  const idxEleve = headersRef.indexOf('_ELEVE_PLACE');
-  if (idxEleve === -1) {
+  const idxElevePlace = headersRef.indexOf('_ELEVE_PLACE');
+  if (idxElevePlace === -1) {
     const lastCol = consolidationSheet.getLastColumn();
     consolidationSheet.getRange(1, lastCol + 1).setValue('_ELEVE_PLACE')
       .setBackground('#FFD966').setFontWeight('bold');
@@ -62,16 +62,36 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
     // Colonne existe (relance) → La vider
     const lastRow = consolidationSheet.getLastRow();
     if (lastRow > 1) {
-      consolidationSheet.getRange(2, idxEleve + 1, lastRow - 1, 1).clearContent();
+      consolidationSheet.getRange(2, idxElevePlace + 1, lastRow - 1, 1).clearContent();
       logLine('INFO', '  🧹 Colonne _ELEVE_PLACE vidée (relance du pipeline)');
     }
   }
   
+  // ✅ Nettoyer les headers pour exclure _ELEVE_PLACE (colonne temporaire)
+  const cleanHeaders = [];
+  for (let h = 0; h < headersRef.length; h++) {
+    if (h !== idxElevePlace && headersRef[h] !== '_ELEVE_PLACE') {
+      cleanHeaders.push(headersRef[h]);
+    }
+  }
+  headersRef = cleanHeaders; // Utiliser les headers nettoyés
+  
+  // ✅ Lire les données en excluant _ELEVE_PLACE
   const allData = [];
   for (let i = 1; i < data.length; i++) {
+    const rawRow = data[i];
+    
+    // Nettoyer la ligne (exclure _ELEVE_PLACE)
+    const cleanRow = [];
+    for (let c = 0; c < rawRow.length; c++) {
+      if (c !== idxElevePlace) {
+        cleanRow.push(rawRow[c]);
+      }
+    }
+    
     allData.push({
       sheetName: 'CONSOLIDATION',
-      row: data[i]
+      row: cleanRow // 15 colonnes de base uniquement
     });
   }
 
@@ -168,15 +188,42 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
         }
 
         if (match) {
-          // ✅ PLACER SANS VÉRIFIER DISSO : LV2/OPT = RÈGLE ABSOLUE
-          item.assigned = classe;
-          placed++;
-          classeCounts[classe]++; // Incrémenter le compteur de la classe
-          stats[optName] = (stats[optName] || 0) + 1;
+          // ✅ COMPATIBILITÉ TOTALE : Vérifier que la classe supporte TOUTES les options de l'élève
+          let compatible = true;
+          
+          // Vérifier LV2 (si l'élève en a une et qu'elle n'est pas universelle)
+          if (lv2 && lv2Universelles.indexOf(lv2) === -1) {
+            // L'élève a une LV2 rare → La classe doit la proposer
+            if (!quotas[lv2] || quotas[lv2] <= 0) {
+              compatible = false;
+            }
+          }
+          
+          // Vérifier OPT (si l'élève en a une)
+          if (compatible && opt && ['CHAV', 'LATIN', 'GREC'].indexOf(opt) >= 0) {
+            // L'élève a une option → La classe doit la proposer
+            if (!quotas[opt] || quotas[opt] <= 0) {
+              compatible = false;
+            }
+          }
+          
+          if (compatible) {
+            // ✅ PLACER : Toutes les options de l'élève sont supportées par la classe
+            item.assigned = classe;
+            placed++;
+            classeCounts[classe]++; // Incrémenter le compteur de la classe
+            stats[optName] = (stats[optName] || 0) + 1;
 
-          const nom = String(row[idxNom] || '');
-          const prenom = String(row[idxPrenom] || '');
-          logLine('INFO', '    ✅ ' + nom + ' ' + prenom + ' → ' + classe + ' (' + optName + ') [' + classeCounts[classe] + '/' + targetEffectif + ']');
+            const nom = String(row[idxNom] || '');
+            const prenom = String(row[idxPrenom] || '');
+            logLine('INFO', '    ✅ ' + nom + ' ' + prenom + ' → ' + classe + ' (' + optName + ') [' + classeCounts[classe] + '/' + targetEffectif + ']');
+          } else {
+            // ❌ INCOMPATIBLE : L'élève a d'autres contraintes non supportées
+            // On le laisse pour une autre classe qui supporte tout
+            const nom = String(row[idxNom] || '');
+            const prenom = String(row[idxPrenom] || '');
+            logLine('INFO', '    ⏭️ ' + nom + ' ' + prenom + ' : ' + optName + ' mais incompatible avec ' + classe + ' (a aussi: LV2=' + lv2 + ', OPT=' + opt + ')');
+          }
         }
       }
 
@@ -248,26 +295,39 @@ function Phase1I_dispatchOptionsLV2_LEGACY(ctx) {
   // 🏷️ Marquer en batch pour performance
   logLine('INFO', '🏷️ Marquage des élèves placés dans CONSOLIDATION...');
   
-  const idxElevePlace = headersRef.indexOf('_ELEVE_PLACE');
-  const idxID = headersRef.indexOf('ID_ELEVE');
+  // ✅ Relire les headers de CONSOLIDATION (avec _ELEVE_PLACE)
+  const consolidationHeaders = consolidationSheet.getRange(1, 1, 1, consolidationSheet.getLastColumn()).getValues()[0];
+  const idxElevePlaceInSheet = consolidationHeaders.indexOf('_ELEVE_PLACE');
+  const idxIDInData = headersRef.indexOf('ID_ELEVE');
+  const idxIDInSheet = consolidationHeaders.indexOf('ID_ELEVE');
   
-  if (idxElevePlace !== -1 && idxID !== -1) {
+  if (idxElevePlaceInSheet !== -1 && idxIDInData !== -1 && idxIDInSheet !== -1) {
     const updates = [];
+    const consolidationData = consolidationSheet.getDataRange().getValues();
     
+    // Pour chaque élève placé, trouver sa ligne dans CONSOLIDATION
     for (let i = 0; i < allData.length; i++) {
       if (allData[i].assigned) {
-        const idEleve = String(allData[i].row[idxID] || '').trim();
-        updates.push({
-          row: i + 2, // +2 car i=0 est ligne 2 (après header)
-          value: 'P1:' + allData[i].assigned // Ex: "P1:5°1"
-        });
+        const idEleve = String(allData[i].row[idxIDInData] || '').trim();
+        
+        // Trouver la ligne correspondante dans CONSOLIDATION
+        for (let r = 1; r < consolidationData.length; r++) {
+          const idInSheet = String(consolidationData[r][idxIDInSheet] || '').trim();
+          if (idInSheet === idEleve) {
+            updates.push({
+              row: r + 1, // +1 car r=0 est la ligne 1 (header est 0 dans data mais 1 dans sheet)
+              value: 'P1:' + allData[i].assigned // Ex: "P1:5°1"
+            });
+            break;
+          }
+        }
       }
     }
     
     // Écrire en batch
     if (updates.length > 0) {
       updates.forEach(function(upd) {
-        consolidationSheet.getRange(upd.row, idxElevePlace + 1).setValue(upd.value);
+        consolidationSheet.getRange(upd.row, idxElevePlaceInSheet + 1).setValue(upd.value);
       });
       logLine('INFO', '  ✅ ' + updates.length + ' élèves marqués dans CONSOLIDATION');
     }

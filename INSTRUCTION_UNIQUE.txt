@@ -1,0 +1,54 @@
+═══════════════════════════════════════════════════════════════
+   INSTRUCTION UNIQUE - COPIER 1 SEUL FICHIER
+═══════════════════════════════════════════════════════════════
+
+Le problème : Google Apps Script ne trouve pas les fonctions backend.
+
+La solution : Remplacer UN SEUL fichier dans Google Apps Script.
+
+───────────────────────────────────────────────────────────────
+ÉTAPE 1 : Ouvrir Google Apps Script
+───────────────────────────────────────────────────────────────
+
+1. Ouvrez votre Google Sheet
+2. Menu : Extensions > Apps Script
+3. Dans la liste des fichiers à gauche, cliquez sur "Code.gs"
+
+───────────────────────────────────────────────────────────────
+ÉTAPE 2 : Remplacer le contenu
+───────────────────────────────────────────────────────────────
+
+1. SUPPRIMEZ tout le contenu actuel de Code.gs (Ctrl+A puis Suppr)
+
+2. Ouvrez le fichier local :
+   c:\OUTIL 25 26\DOSSIER BASE 18 COMBO\BASE 18 COMBO 1\Code.gs
+
+3. COPIEZ tout son contenu (Ctrl+A puis Ctrl+C)
+
+4. COLLEZ dans Google Apps Script (Ctrl+V)
+
+5. ENREGISTREZ (Ctrl+S ou icône disquette)
+
+───────────────────────────────────────────────────────────────
+ÉTAPE 3 : Tester
+───────────────────────────────────────────────────────────────
+
+1. Rechargez InterfaceV2 (F5)
+
+2. Les erreurs suivantes doivent disparaître :
+   ❌ Fonction getClassesData non disponible
+   ❌ Fonction getLastCacheInfo non disponible
+   ❌ Fonction getBridgeContextAndClear non disponible
+
+═══════════════════════════════════════════════════════════════
+   C'EST TOUT. UN SEUL FICHIER À REMPLACER.
+═══════════════════════════════════════════════════════════════
+
+Toutes les fonctions manquantes sont maintenant dans Code.gs :
+✅ getClassesData
+✅ getLastCacheInfo  
+✅ getBridgeContextAndClear
+✅ saveCacheData
+✅ loadCacheData
+✅ saveElevesSnapshot
+✅ getUiSettings
