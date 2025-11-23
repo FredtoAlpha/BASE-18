@@ -1,10 +1,11 @@
 ═══════════════════════════════════════════════════════════════
-   INSTRUCTION UNIQUE - COPIER 1 SEUL FICHIER
+   INSTRUCTION - MISE À JOUR COMPLÈTE
 ═══════════════════════════════════════════════════════════════
 
-Le problème : Google Apps Script ne trouve pas les fonctions backend.
+Le problème : Google Apps Script ne trouve pas les fonctions backend
+OU l'interface appelle d'anciennes versions des fonctions.
 
-La solution : Remplacer UN SEUL fichier dans Google Apps Script.
+La solution : Remplacer Code.gs ET les fichiers HTML dans Apps Script.
 
 ───────────────────────────────────────────────────────────────
 ÉTAPE 1 : Ouvrir Google Apps Script
@@ -12,25 +13,57 @@ La solution : Remplacer UN SEUL fichier dans Google Apps Script.
 
 1. Ouvrez votre Google Sheet
 2. Menu : Extensions > Apps Script
-3. Dans la liste des fichiers à gauche, cliquez sur "Code.gs"
 
 ───────────────────────────────────────────────────────────────
-ÉTAPE 2 : Remplacer le contenu
+ÉTAPE 2 : Remplacer Code.gs (BACKEND)
 ───────────────────────────────────────────────────────────────
 
-1. SUPPRIMEZ tout le contenu actuel de Code.gs (Ctrl+A puis Suppr)
+1. Dans la liste des fichiers à gauche, cliquez sur "Code.gs"
 
-2. Ouvrez le fichier local :
+2. SUPPRIMEZ tout le contenu actuel de Code.gs (Ctrl+A puis Suppr)
+
+3. Ouvrez le fichier local :
    c:\OUTIL 25 26\DOSSIER BASE 18 COMBO\BASE 18 COMBO 1\Code.gs
 
-3. COPIEZ tout son contenu (Ctrl+A puis Ctrl+C)
+4. COPIEZ tout son contenu (Ctrl+A puis Ctrl+C)
 
-4. COLLEZ dans Google Apps Script (Ctrl+V)
+5. COLLEZ dans Google Apps Script (Ctrl+V)
 
-5. ENREGISTREZ (Ctrl+S ou icône disquette)
+6. ENREGISTREZ (Ctrl+S ou icône disquette)
 
 ───────────────────────────────────────────────────────────────
-ÉTAPE 3 : Tester
+ÉTAPE 3 : Mettre à jour InterfaceV2_CoreScript.html (FRONTEND)
+───────────────────────────────────────────────────────────────
+
+⚠️ IMPORTANT : Ce fichier doit aussi être mis à jour pour utiliser
+les nouvelles fonctions backend !
+
+1. Dans Apps Script, cherchez "InterfaceV2_CoreScript.html"
+
+2. Ouvrez le fichier local :
+   c:\OUTIL 25 26\DOSSIER BASE 18 COMBO\BASE 18 COMBO 1\InterfaceV2_CoreScript.html
+
+3. Remplacez TOUT le contenu (Ctrl+A, Suppr, puis Ctrl+V)
+
+4. ENREGISTREZ (Ctrl+S)
+
+───────────────────────────────────────────────────────────────
+ÉTAPE 4 : Vider le cache du navigateur
+───────────────────────────────────────────────────────────────
+
+⚠️ CRITIQUE : Le navigateur met en cache les fichiers HTML !
+
+1. Dans Chrome/Edge : Ctrl+Maj+Suppr
+2. Cocher "Images et fichiers en cache"
+3. Période : "Dernière heure"
+4. Cliquer sur "Effacer les données"
+
+OU
+
+Ouvrir InterfaceV2 en mode navigation privée (Ctrl+Maj+N)
+
+───────────────────────────────────────────────────────────────
+ÉTAPE 5 : Tester
 ───────────────────────────────────────────────────────────────
 
 1. Rechargez InterfaceV2 (F5)

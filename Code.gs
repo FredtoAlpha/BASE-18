@@ -188,6 +188,26 @@ function mapStudentsForInterface(headers, rows) {
       eleve.id = String(row[0] || '').trim();
     }
 
+    // Créer l'objet scores pour le frontend
+    eleve.scores = {
+      COM: eleve.COM || 0,
+      TRA: eleve.TRA || 0,
+      PART: eleve.PART || 0,
+      ABS: eleve.ABS || 0
+    };
+
+    // Normaliser les champs pour compatibilité frontend
+    eleve.nom = eleve.NOM || '';
+    eleve.prenom = eleve.PRENOM || '';
+    eleve.sexe = eleve.SEXE || '';
+    eleve.lv2 = eleve.LV2 || '';
+    eleve.opt = eleve.OPT || '';
+    eleve.asso = eleve.ASSO || '';
+    eleve.disso = eleve.DISSO || '';
+    eleve.dispo = eleve.DISPO || '';
+    eleve.mobilite = eleve.MOBILITE || '';
+    eleve.source = eleve.SOURCE || '';
+
     return eleve;
   }).filter(eleve => eleve.id);
 }
