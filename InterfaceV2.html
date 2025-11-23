@@ -53,6 +53,7 @@
     // Configuration Tailwind pour supprimer le warning PostCSS
     window.tailwindConfig = {
       // Configuration silencieuse pour environnement CDN
+      darkMode: 'class', // ⚠️ FORCER mode class (pas media) pour éviter dark mode automatique
       corePlugins: {
         preflight: true,
       }
