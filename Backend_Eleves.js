@@ -109,36 +109,11 @@ function validateScore(score) {
  * @returns {Object} Données organisées par classe
  */
 function getClassesData(mode = 'source') {
-  const classesData = collectClassesDataByMode(mode);
-
-  return {
-    success: true,
-    data: classesData
-  };
-}
-
-function resolveSheetFilter(mode) {
-  const normalized = (mode || '').toString().trim().toUpperCase();
-
-  switch (normalized) {
-    case 'FIN':
-      return /FIN$/;
-    case 'TEST':
-      return /TEST$/;
-    case 'CACHE':
-      return /CACHE$/;
-    case 'PREVIOUS':
-      return /PREVIOUS$/;
-    default:
-      return /.+°\d+$/; // ✅ Pattern universel (sources sans suffixe)
-  }
-}
-
-function collectClassesDataByMode(mode) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const filter = resolveSheetFilter(mode);
-  const sheets = ss.getSheets().filter(s => filter.test(s.getName()));
   const classesData = {};
+
+  const filter = mode === 'fin' ? /FIN$/ : /.+°\d+$/; // ✅ Pattern universel
+  const sheets = ss.getSheets().filter(s => filter.test(s.getName()));
 
   sheets.forEach(sheet => {
     const data = sheet.getDataRange().getValues();
@@ -153,121 +128,10 @@ function collectClassesDataByMode(mode) {
     };
   });
 
-  return classesData;
-}
-
-function mapStudentsForInterface(headers, rows) {
-  return rows.map(row => {
-    const eleve = {};
-
-    headers.forEach((header, idx) => {
-      if (!header) return;
-      eleve[header] = row[idx];
-      if (!eleve.id && header === 'ID_ELEVE') {
-        eleve.id = String(row[idx] || '').trim();
-      }
-    });
-
-    if (!eleve.id) {
-      eleve.id = String(row[0] || '').trim();
-    }
-
-    return eleve;
-  }).filter(eleve => eleve.id);
-}
-
-function normalizeClasseName(sheetName) {
-  return sheetName.replace(/(TEST|FIN|CACHE|PREVIOUS)$/i, '').trim();
-}
-
-function loadStructureRules() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('_STRUCTURE');
-  if (!sheet) return {};
-
-  const data = sheet.getDataRange().getValues();
-  if (!data.length) return {};
-
-  let headerRow = 0;
-  for (let i = 0; i < Math.min(data.length, 10); i++) {
-    const row = data[i].map(v => String(v || '').toUpperCase());
-    if (row.includes('CLASSE_DEST') || row.includes('CLASSE') || row.includes('DESTINATION')) {
-      headerRow = i;
-      break;
-    }
-  }
-
-  const headers = data[headerRow].map(h => String(h || ''));
-  const destIdx = headers.findIndex(h => ['CLASSE_DEST', 'CLASSE', 'DESTINATION'].includes(h.toUpperCase()));
-  const effectifIdx = headers.findIndex(h => h.toUpperCase() === 'EFFECTIF');
-  const optionsIdx = headers.findIndex(h => h.toUpperCase() === 'OPTIONS');
-
-  if (destIdx === -1 && effectifIdx === -1 && optionsIdx === -1) {
-    return {};
-  }
-
-  const rules = {};
-  for (let i = headerRow + 1; i < data.length; i++) {
-    const row = data[i];
-    const classe = destIdx === -1 ? '' : String(row[destIdx] || '').trim();
-    if (!classe) continue;
-
-    const capacity = effectifIdx === -1 ? 25 : Number(row[effectifIdx]) || 25;
-    const quotas = {};
-
-    if (optionsIdx !== -1 && row[optionsIdx]) {
-      String(row[optionsIdx])
-        .split(',')
-        .map(part => part.trim())
-        .filter(Boolean)
-        .forEach(part => {
-          let [opt, quota] = part.split(/[:=]/);
-          opt = (opt || '').trim();
-          quota = (quota || '').trim();
-          if (opt) quotas[opt] = Number(quota) || 0;
-        });
-    }
-
-    rules[classe] = { capacity, quotas };
-  }
-
-  return rules;
-}
-
-function getClassesDataForInterfaceV2(mode = 'TEST') {
-  try {
-    const classesData = collectClassesDataByMode(mode);
-    if (!classesData || Object.keys(classesData).length === 0) {
-      return { success: false, error: 'Aucun onglet trouvé', data: [] };
-    }
-
-    const data = Object.values(classesData).map(entry => {
-      const eleves = mapStudentsForInterface(entry.headers, entry.students);
-      return {
-        classe: normalizeClasseName(entry.sheetName),
-        eleves,
-        sheetName: entry.sheetName,
-        headers: entry.headers,
-        rowCount: entry.rowCount
-      };
-    });
-
-    const rules = loadStructureRules();
-
-    return {
-      success: true,
-      data,
-      rules,
-      timestamp: new Date().getTime()
-    };
-  } catch (e) {
-    Logger.log('❌ Erreur getClassesDataForInterfaceV2: ' + e.toString());
-    return {
-      success: false,
-      error: e.toString(),
-      data: []
-    };
-  }
+  return {
+    success: true,
+    data: classesData
+  };
 }
 
 /**

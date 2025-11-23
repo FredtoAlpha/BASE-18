@@ -118,51 +118,202 @@ function legacy_openStructure() {
 // ========== FONCTIONS BACKEND POUR INTERFACEV2 ==========
 
 /**
- * Récupère les données groupées par classe
+ * Résout le filtre regex selon le mode demandé
+ * @param {string} mode - Mode de recherche
+ * @returns {RegExp} Expression régulière de filtrage
+ */
+function resolveSheetFilter(mode) {
+  const normalized = (mode || '').toString().trim().toUpperCase();
+
+  switch (normalized) {
+    case 'FIN':
+      return /FIN$/;
+    case 'TEST':
+      return /TEST$/;
+    case 'CACHE':
+      return /CACHE$/;
+    case 'PREVIOUS':
+      return /PREVIOUS$/;
+    default:
+      return /.+°\d+$/; // Sources : termine par °chiffre
+  }
+}
+
+/**
+ * Collecte les données brutes des onglets selon le mode
+ * @param {string} mode - Mode de collecte
+ * @returns {Object} Données brutes par classe
+ */
+function collectClassesDataByMode(mode) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const filter = resolveSheetFilter(mode);
+  const sheets = ss.getSheets().filter(s => filter.test(s.getName()));
+  const classesData = {};
+
+  sheets.forEach(sheet => {
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) return;
+
+    classesData[sheet.getName()] = {
+      sheetName: sheet.getName(),
+      headers: data[0],
+      students: data.slice(1).filter(row => row[0] && String(row[0]).trim() !== ''),
+      rowCount: data.length - 1,
+      timestamp: new Date().getTime()
+    };
+  });
+
+  return classesData;
+}
+
+/**
+ * Mappe les lignes élèves au format objet pour l'interface
+ * @param {Array} headers - En-têtes de colonnes
+ * @param {Array} rows - Lignes de données
+ * @returns {Array} Élèves mappés
+ */
+function mapStudentsForInterface(headers, rows) {
+  return rows.map(row => {
+    const eleve = {};
+
+    headers.forEach((header, idx) => {
+      if (!header) return;
+      eleve[header] = row[idx];
+      if (!eleve.id && header === 'ID_ELEVE') {
+        eleve.id = String(row[idx] || '').trim();
+      }
+    });
+
+    if (!eleve.id) {
+      eleve.id = String(row[0] || '').trim();
+    }
+
+    return eleve;
+  }).filter(eleve => eleve.id);
+}
+
+/**
+ * Normalise le nom de classe en supprimant les suffixes
+ * @param {string} sheetName - Nom d'onglet brut
+ * @returns {string} Nom normalisé
+ */
+function normalizeClasseName(sheetName) {
+  return sheetName.replace(/(TEST|FIN|CACHE|PREVIOUS)$/i, '').trim();
+}
+
+/**
+ * Charge les règles de structure (_STRUCTURE)
+ * @returns {Object} Règles par classe {capacity, quotas}
+ */
+function loadStructureRules() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('_STRUCTURE');
+  if (!sheet) return {};
+
+  const data = sheet.getDataRange().getValues();
+  if (!data.length) return {};
+
+  let headerRow = 0;
+  for (let i = 0; i < Math.min(data.length, 10); i++) {
+    const row = data[i].map(v => String(v || '').toUpperCase());
+    if (row.includes('CLASSE_DEST') || row.includes('CLASSE') || row.includes('DESTINATION')) {
+      headerRow = i;
+      break;
+    }
+  }
+
+  const headers = data[headerRow].map(h => String(h || ''));
+  const destIdx = headers.findIndex(h => ['CLASSE_DEST', 'CLASSE', 'DESTINATION'].includes(h.toUpperCase()));
+  const effectifIdx = headers.findIndex(h => h.toUpperCase() === 'EFFECTIF');
+  const optionsIdx = headers.findIndex(h => h.toUpperCase() === 'OPTIONS');
+
+  if (destIdx === -1 && effectifIdx === -1 && optionsIdx === -1) {
+    return {};
+  }
+
+  const rules = {};
+  for (let i = headerRow + 1; i < data.length; i++) {
+    const row = data[i];
+    const classe = destIdx === -1 ? '' : String(row[destIdx] || '').trim();
+    if (!classe) continue;
+
+    const capacity = effectifIdx === -1 ? 25 : Number(row[effectifIdx]) || 25;
+    const quotas = {};
+
+    if (optionsIdx !== -1 && row[optionsIdx]) {
+      String(row[optionsIdx])
+        .split(',')
+        .map(part => part.trim())
+        .filter(Boolean)
+        .forEach(part => {
+          let [opt, quota] = part.split(/[:=]/);
+          opt = (opt || '').trim();
+          quota = (quota || '').trim();
+          if (opt) quotas[opt] = Number(quota) || 0;
+        });
+    }
+
+    rules[classe] = { capacity, quotas };
+  }
+
+  return rules;
+}
+
+/**
+ * 🎯 ADAPTATEUR SAS - Fonction principale pour InterfaceV2
+ * Convertit les onglets TEST/FIN/CACHE/PREVIOUS au format attendu
+ * @param {string} mode - Mode de chargement
+ * @returns {Object} {success: boolean, data: Array, rules: Object}
+ */
+function getClassesDataForInterfaceV2(mode = 'TEST') {
+  try {
+    const classesData = collectClassesDataByMode(mode);
+    if (!classesData || Object.keys(classesData).length === 0) {
+      return { success: false, error: 'Aucun onglet trouvé pour le mode: ' + mode, data: [] };
+    }
+
+    const data = Object.values(classesData).map(entry => {
+      const eleves = mapStudentsForInterface(entry.headers, entry.students);
+      return {
+        classe: normalizeClasseName(entry.sheetName),
+        eleves,
+        sheetName: entry.sheetName,
+        headers: entry.headers,
+        rowCount: entry.rowCount
+      };
+    });
+
+    const rules = loadStructureRules();
+
+    return {
+      success: true,
+      data,
+      rules,
+      timestamp: new Date().getTime()
+    };
+  } catch (e) {
+    Logger.log('❌ Erreur getClassesDataForInterfaceV2: ' + e.toString());
+    return {
+      success: false,
+      error: e.toString(),
+      data: []
+    };
+  }
+}
+
+/**
+ * FONCTION LEGACY - Maintenue pour compatibilité
+ * Récupère les données groupées par classe (ancien format)
  * @param {string} mode - 'source', 'test', 'fin' ou 'cache'
  * @returns {Object} {success: boolean, data: Object}
  */
 function getClassesData(mode = 'source') {
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const classesData = {};
+  const classesData = collectClassesDataByMode(mode);
 
-    // Déterminer le filtre selon le mode
-    let filter;
-    if (mode === 'fin') {
-      filter = /FIN$/;
-    } else if (mode === 'test') {
-      filter = /TEST$/;
-    } else {
-      filter = /.+°\d+$/; // Sources : termine par °chiffre
-    }
-
-    const sheets = ss.getSheets().filter(s => filter.test(s.getName()));
-
-    sheets.forEach(sheet => {
-      const data = sheet.getDataRange().getValues();
-      if (data.length < 2) return;
-
-      classesData[sheet.getName()] = {
-        sheetName: sheet.getName(),
-        headers: data[0],
-        students: data.slice(1).filter(row => row[0] && String(row[0]).trim() !== ''),
-        rowCount: data.length - 1,
-        timestamp: new Date().getTime()
-      };
-    });
-
-    return {
-      success: true,
-      data: classesData
-    };
-  } catch (e) {
-    Logger.log('❌ Erreur getClassesData: ' + e.toString());
-    return {
-      success: false,
-      error: e.toString()
-    };
-  }
+  return {
+    success: true,
+    data: classesData
+  };
 }
 
 /**

@@ -1,0 +1,164 @@
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                                                                           ║
+║   🎯 DÉPLOIEMENT DE L'ADAPTATEUR SAS INTERFACEV2                         ║
+║                                                                           ║
+║   Résout : "Fonction getClassesData non disponible"                      ║
+║            "Erreur lors du chargement des données"                       ║
+║                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 FICHIERS MODIFIÉS (PRÊTS À DÉPLOYER)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Code.gs
+   → Contient l'adaptateur SAS complet (7 nouvelles fonctions)
+   
+✅ InterfaceV2_CoreScript.html
+   → Appelle maintenant getClassesDataForInterfaceV2
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 ÉTAPE 1 : DÉPLOYER Code.gs
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Ouvrez votre Google Sheet
+2. Menu : Extensions > Apps Script
+3. Cliquez sur le fichier "Code.gs" dans la liste
+4. SUPPRIMEZ tout le contenu (Ctrl+A puis Suppr)
+5. Ouvrez le fichier local :
+   
+   📂 c:\OUTIL 25 26\DOSSIER BASE 18 COMBO\BASE 18 COMBO 1\Code.gs
+   
+6. COPIEZ tout (Ctrl+A puis Ctrl+C)
+7. COLLEZ dans Google Apps Script (Ctrl+V)
+8. ENREGISTREZ (Ctrl+S ou icône disquette 💾)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 ÉTAPE 2 : DÉPLOYER InterfaceV2_CoreScript.html
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ SI LE FICHIER N'EXISTE PAS ENCORE DANS APPS SCRIPT :
+
+1. Dans Google Apps Script, cliquez sur + (à côté de "Fichiers")
+2. Choisissez "HTML"
+3. Nom : InterfaceV2_CoreScript
+4. Ouvrez le fichier local :
+   
+   📂 c:\OUTIL 25 26\DOSSIER BASE 18 COMBO\BASE 18 COMBO 1\InterfaceV2_CoreScript.html
+   
+5. COPIEZ tout (Ctrl+A puis Ctrl+C)
+6. COLLEZ dans Google Apps Script (Ctrl+V)
+7. ENREGISTREZ (Ctrl+S)
+
+
+✅ SI LE FICHIER EXISTE DÉJÀ :
+
+1. Cliquez sur "InterfaceV2_CoreScript.html" dans la liste
+2. SUPPRIMEZ tout le contenu (Ctrl+A puis Suppr)
+3. COPIEZ le contenu du fichier local (voir étape 4-6 ci-dessus)
+4. ENREGISTREZ
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ ÉTAPE 3 : TESTER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Ouvrez InterfaceV2 (URL déployée)
+2. Appuyez sur F5 pour recharger la page
+3. Cliquez sur le bouton "TEST" dans le modal de démarrage
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ RÉSULTAT ATTENDU
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DANS LA CONSOLE (F12) :
+
+✅ 🎯 RÉSULTAT SAS getClassesDataForInterfaceV2: {...}
+✅ 🔍 result.success: true
+✅ 🔍 result.data (Array): [...]
+✅ 🔍 result.rules (_STRUCTURE): {...}
+✅ 🔍 Nombre de classes: 2 (ou plus)
+
+SUR L'INTERFACE :
+
+✅ Les colonnes de classes s'affichent (6°1, 6°2, etc.)
+✅ Les élèves apparaissent dans chaque colonne
+✅ Pas d'erreur "Fonction non disponible"
+✅ Pas d'erreur "undefined"
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 DÉPANNAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ "Fonction getClassesDataForInterfaceV2 non disponible"
+   → Code.gs n'est pas déployé correctement
+   → Vérifiez que vous avez bien enregistré (Ctrl+S)
+   → Essayez de fermer et rouvrir Google Apps Script
+
+❌ "Aucun onglet trouvé pour le mode: TEST"
+   → Vos onglets ne se terminent pas par "TEST"
+   → Vérifiez les noms : doivent être "6°1TEST", "6°2TEST", etc.
+   → Si vos onglets s'appellent "6°1_test" → Renommez-les en "6°1TEST"
+
+❌ result.data est vide []
+   → Aucun onglet ne correspond au filtre
+   → Vérifiez les noms d'onglets dans votre Google Sheet
+
+❌ result.rules est vide {}
+   → Onglet _STRUCTURE absent ou mal formaté
+   → L'interface fonctionnera quand même (capacité par défaut : 25)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 NOUVEAUTÉS DU SAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✨ Conversion automatique du format dictionnaire → array
+✨ Normalisation des noms de classes (6°1TEST → 6°1)
+✨ Mapping des élèves en objets structurés
+✨ Chargement automatique des règles depuis _STRUCTURE
+✨ Support multi-modes : TEST, FIN, CACHE, PREVIOUS, SOURCES
+✨ Gestion d'erreur améliorée avec messages explicites
+✨ Format de sortie standardisé {success, data, rules}
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📚 DOCUMENTATION COMPLÈTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Voir le fichier : SAS_ADAPTATEUR_V2_DOCUMENTATION.md
+
+Contient :
+• Architecture du SAS
+• Description de chaque fonction
+• Format des données
+• Tests et validation
+• Gestion des erreurs
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ CHECKLIST DE DÉPLOIEMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+□ Code.gs remplacé dans Google Apps Script
+□ Code.gs enregistré (Ctrl+S)
+□ InterfaceV2_CoreScript.html remplacé (si nécessaire)
+□ InterfaceV2 rechargée (F5)
+□ Console ouverte (F12) pour voir les logs
+□ Bouton TEST cliqué
+□ Colonnes de classes visibles
+□ Élèves affichés dans les colonnes
+
+
+╔═══════════════════════════════════════════════════════════════════════════╗
+║                                                                           ║
+║   🎉 C'EST TOUT ! DEUX FICHIERS À REMPLACER.                             ║
+║                                                                           ║
+║   Le SAS est prêt à fonctionner.                                         ║
+║                                                                           ║
+╚═══════════════════════════════════════════════════════════════════════════╝
