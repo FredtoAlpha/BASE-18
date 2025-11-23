@@ -550,7 +550,7 @@ function findBestSwap_(state, ctx, weights, tolParity, parityTargets) {
           if (!isEleveMobile_(stu2)) continue;
 
           // Vérifier faisabilité
-          if (!isSwapFeasible_(stu1, stu2, cls1, cls2, ctx)) continue;
+          if (!isSwapFeasible_(stu1, stu2, cls1, cls2, state, ctx)) continue;
 
           // Simuler le swap
           const newState = simulateSwap_(state, stu1, stu2, cls1, cls2);
@@ -587,21 +587,47 @@ function isEleveMobile_(stu) {
 /**
  * Vérifie si un swap est faisable (quotas, groupes)
  */
-function isSwapFeasible_(stu1, stu2, cls1, cls2, ctx) {
+function isSwapFeasible_(stu1, stu2, cls1, cls2, state, ctx) {
   // Vérifier quotas LV2/OPT
   // TODO: Implémenter vérification des quotas
-  
+
   // Vérifier groupes ASSO (ne pas séparer)
   const asso1 = String(stu1.ASSO || stu1.A || '').trim();
   const asso2 = String(stu2.ASSO || stu2.A || '').trim();
   if (asso1 && asso1 === asso2) return false; // Même groupe ASSO
 
-  // ✅ CORRECTION BUG PERMUT/DISSO : Vérifier que les codes DISSO sont compatibles
-  // Deux élèves avec le MÊME code DISSO PEUVENT se permuter (ex: deux D1)
-  // Mais un élève avec code DISSO ne peut pas se permuter avec un élève sans code (ou code différent)
-  const disso1 = String(stu1.DISSO || stu1.D || '').trim();
-  const disso2 = String(stu2.DISSO || stu2.D || '').trim();
-  if (disso1 !== disso2) return false; // Codes DISSO différents ou incompatibles
+  // 🔒 CORRECTION BUG PERMUT/DISSO : Vérifier que le swap ne créera pas de conflit DISSO
+  // Les codes DISSO doivent être SÉPARÉS (pas dans la même classe)
+  const disso1 = String(stu1.DISSO || stu1.D || '').trim().toUpperCase();
+  const disso2 = String(stu2.DISSO || stu2.D || '').trim().toUpperCase();
+
+  // Si stu1 a un code DISSO, vérifier que cls2 (sa future classe) ne contient pas déjà ce code
+  if (disso1) {
+    const students2 = state.byClass[cls2] || [];
+    for (let i = 0; i < students2.length; i++) {
+      const other = students2[i];
+      if (other === stu2) continue; // Ignorer stu2 qui va quitter cette classe
+      const otherDisso = String(other.DISSO || other.D || '').trim().toUpperCase();
+      if (otherDisso === disso1) {
+        // Conflit : cls2 contient déjà un élève avec le code DISSO de stu1
+        return false;
+      }
+    }
+  }
+
+  // Si stu2 a un code DISSO, vérifier que cls1 (sa future classe) ne contient pas déjà ce code
+  if (disso2) {
+    const students1 = state.byClass[cls1] || [];
+    for (let i = 0; i < students1.length; i++) {
+      const other = students1[i];
+      if (other === stu1) continue; // Ignorer stu1 qui va quitter cette classe
+      const otherDisso = String(other.DISSO || other.D || '').trim().toUpperCase();
+      if (otherDisso === disso2) {
+        // Conflit : cls1 contient déjà un élève avec le code DISSO de stu2
+        return false;
+      }
+    }
+  }
 
   return true;
 }
