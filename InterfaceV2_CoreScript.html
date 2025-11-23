@@ -561,11 +561,20 @@ function canSwap(id1, id2) {
     console.log(`✅ Swap autorisé: ${eleve1.nom} ↔ ${eleve2.nom} (même code D${eleve1.disso})`);
     return { ok: true };
   }
-  
+
+  // ✅ CORRECTION BUG PERMUT/DISSO : Vérifier que les codes DISSO sont identiques
+  // Si l'un a un code DISSO et l'autre non (ou codes différents), swap refusé
+  // Ex: un élève ITA ne peut pas être permuté avec un élève ITA qui a un code D1
+  const disso1 = eleve1.disso || '';
+  const disso2 = eleve2.disso || '';
+  if (disso1 !== disso2) {
+    return { ok: false, reason: `Codes DISSO incompatibles (${disso1 || 'aucun'} vs ${disso2 || 'aucun'})` };
+  }
+
   // Cas 2 : Même LV2 ET même OPT (ou pas d'OPT)
   const memeLV2 = lv2_1 === lv2_2 || (lv2_1 === 'ESP' && lv2_2 === 'ESP') || (!lv2_1 && !lv2_2);
   const memeOPT = opt_1 === opt_2 || (!opt_1 && !opt_2);
-  
+
   if (memeLV2 && memeOPT) {
     console.log(`✅ Swap autorisé: ${eleve1.nom} ↔ ${eleve2.nom} (mêmes contraintes: LV2=${lv2_1 || 'aucune'}, OPT=${opt_1 || 'aucune'})`);
     return { ok: true };
@@ -591,15 +600,24 @@ function canSwap(id1, id2) {
   if (eleve1.mobilite === 'PERMUT' && eleve2.mobilite === 'PERMUT') {
     const lv1 = (eleve1.lv2 || '').toUpperCase();
     const lv2 = (eleve2.lv2 || '').toUpperCase();
-    
+
+    // ✅ CORRECTION BUG PERMUT/DISSO : Vérifier que les codes DISSO sont identiques
+    // Deux élèves PERMUT ne sont permutables que s'ils ont le même code DISSO
+    // Ex: deux D1 peuvent se permuter entre eux, mais un D1 ne peut pas se permuter avec un ITA
+    const permutDisso1 = eleve1.disso || '';
+    const permutDisso2 = eleve2.disso || '';
+    if (permutDisso1 !== permutDisso2) {
+      return { ok: false, reason: `PERMUT : codes DISSO incompatibles (${permutDisso1 || 'aucun'} vs ${permutDisso2 || 'aucun'})` };
+    }
+
     if (lv1 === 'ESP' || lv2 === 'ESP') {
       return { ok: true };
     }
-    
+
     if (lv1 !== lv2) {
       return { ok: false, reason: `PERMUT : LV2 différentes` };
     }
-    
+
     return { ok: true };
   }
   
