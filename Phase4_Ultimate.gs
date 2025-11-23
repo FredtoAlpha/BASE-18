@@ -79,11 +79,12 @@ function Phase4_Ultimate_Run(ctx) {
 
     // D. Appliquer si gain positif
     if (bestSwap && bestSwap.gain > 0.0001) {
-      applySwap_Ultimate(allData, byClass, bestSwap);
+      applySwap_Ultimate(allData, byClass, bestSwap, headers);
       swapsApplied++;
       stagnationCount = 0;
 
-      if (swapsApplied % 50 === 0) {
+      // 📋 LOG détaillé de chaque swap
+      if (swapsApplied % 10 === 0 || swapsApplied <= 5) {
         logLine('INFO', `⚡ Swap #${swapsApplied}: ${bestSwap.reason} (Gain: ${bestSwap.gain.toFixed(4)})`);
       }
     } else {
@@ -99,11 +100,24 @@ function Phase4_Ultimate_Run(ctx) {
   // 4. SAUVEGARDE RÉELLE
   const saveResult = saveResults_Ultimate(ss, allData, byClass, headers);
 
+  // 🔍 VALIDATION FINALE : Vérifier absence de duplications DISSO
+  const validationResult = validateDISSOConstraints_Ultimate(allData, byClass, headers);
+  if (!validationResult.ok) {
+    logLine('ERROR', '❌ VALIDATION DISSO ÉCHOUÉE après Phase 4 ULTIMATE !');
+    logLine('ERROR', `  Duplications détectées : ${validationResult.duplicates.length}`);
+    validationResult.duplicates.forEach(dup => {
+      logLine('ERROR', `    • ${dup.classe} : ${dup.code} présent ${dup.count} fois (${dup.noms.join(', ')})`);
+    });
+  } else {
+    logLine('INFO', '✅ Validation DISSO : Aucune duplication détectée');
+  }
+
   logLine('SUCCESS', `✅ ULTIMATE Terminé : ${swapsApplied} swaps chirurgicaux appliqués.`);
   return {
     ok: true,
     swapsApplied: swapsApplied,
-    saveResult: saveResult
+    saveResult: saveResult,
+    validation: validationResult
   };
 }
 
@@ -473,12 +487,38 @@ function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxL
 }
 
 /**
- * Applique un swap d'indices entre deux classes
+ * Applique un swap d'indices entre deux classes avec logs détaillés
  */
-function applySwap_Ultimate(allData, byClass, swap) {
+function applySwap_Ultimate(allData, byClass, swap, headers) {
   const idx1 = swap.idx1;
   const idx2 = swap.idx2;
 
+  // 📋 LOG détaillé des élèves swappés
+  const s1 = allData[idx1];
+  const s2 = allData[idx2];
+  const idxNom = headers.indexOf('NOM');
+  const idxLV2 = headers.indexOf('LV2');
+  const idxOPT = headers.indexOf('OPT');
+  const idxDISSO = headers.indexOf('DISSO');
+
+  const nom1 = idxNom >= 0 ? String(s1.row[idxNom] || '') : 'Élève 1';
+  const nom2 = idxNom >= 0 ? String(s2.row[idxNom] || '') : 'Élève 2';
+
+  const details1 = [];
+  if (idxLV2 >= 0 && s1.row[idxLV2]) details1.push('LV2=' + s1.row[idxLV2]);
+  if (idxOPT >= 0 && s1.row[idxOPT]) details1.push('OPT=' + s1.row[idxOPT]);
+  if (idxDISSO >= 0 && s1.row[idxDISSO]) details1.push('DISSO=' + s1.row[idxDISSO]);
+
+  const details2 = [];
+  if (idxLV2 >= 0 && s2.row[idxLV2]) details2.push('LV2=' + s2.row[idxLV2]);
+  if (idxOPT >= 0 && s2.row[idxOPT]) details2.push('OPT=' + s2.row[idxOPT]);
+  if (idxDISSO >= 0 && s2.row[idxDISSO]) details2.push('DISSO=' + s2.row[idxDISSO]);
+
+  logLine('DEBUG', `  🔄 ULTIMATE Swap: ${swap.cls1} ↔ ${swap.cls2}`);
+  logLine('DEBUG', `    • ${nom1}: ${swap.cls1} → ${swap.cls2} (${details1.join(', ') || 'aucune contrainte'})`);
+  logLine('DEBUG', `    • ${nom2}: ${swap.cls2} → ${swap.cls1} (${details2.join(', ') || 'aucune contrainte'})`);
+
+  // Appliquer le swap
   byClass[swap.cls1] = byClass[swap.cls1].filter(i => i !== idx1).concat([idx2]);
   byClass[swap.cls2] = byClass[swap.cls2].filter(i => i !== idx2).concat([idx1]);
 }
@@ -549,6 +589,62 @@ function saveResults_Ultimate(ss, allData, byClass, headersRef) {
 function logLine(type, msg) {
   const timestamp = new Date().toLocaleTimeString('fr-FR');
   Logger.log(`[${timestamp}] [${type}] ${msg}`);
+}
+
+/**
+ * 🔍 VALIDATION FINALE : Vérifie qu'il n'y a pas de codes DISSO dupliqués dans les classes
+ */
+function validateDISSOConstraints_Ultimate(allData, byClass, headers) {
+  const idxDISSO = headers.indexOf('DISSO');
+  const idxNom = headers.indexOf('NOM');
+
+  if (idxDISSO === -1) {
+    logLine('WARN', '⚠️ Colonne DISSO non trouvée, validation DISSO ignorée');
+    return { ok: true, message: 'Colonne DISSO non trouvée' };
+  }
+
+  // Vérifier chaque classe
+  const duplicates = [];
+  for (const cls in byClass) {
+    const indices = byClass[cls];
+    const dissoCounts = {};
+
+    for (let i = 0; i < indices.length; i++) {
+      const idx = indices[i];
+      const student = allData[idx];
+      const disso = String(student.row[idxDISSO] || '').trim().toUpperCase();
+      if (!disso) continue;
+
+      if (!dissoCounts[disso]) {
+        dissoCounts[disso] = {
+          code: disso,
+          count: 0,
+          noms: []
+        };
+      }
+
+      dissoCounts[disso].count++;
+      const nom = idxNom >= 0 ? String(student.row[idxNom] || '') : `Élève ${idx}`;
+      dissoCounts[disso].noms.push(nom);
+    }
+
+    // Détecter duplications
+    for (const code in dissoCounts) {
+      if (dissoCounts[code].count > 1) {
+        duplicates.push({
+          classe: cls,
+          code: code,
+          count: dissoCounts[code].count,
+          noms: dissoCounts[code].noms
+        });
+      }
+    }
+  }
+
+  return {
+    ok: duplicates.length === 0,
+    duplicates: duplicates
+  };
 }
 
 // ===================================================================
