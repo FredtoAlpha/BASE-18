@@ -595,12 +595,14 @@ function isSwapFeasible_(stu1, stu2, cls1, cls2, ctx) {
   const asso1 = String(stu1.ASSO || stu1.A || '').trim();
   const asso2 = String(stu2.ASSO || stu2.A || '').trim();
   if (asso1 && asso1 === asso2) return false; // Même groupe ASSO
-  
-  // Vérifier groupes DISSO (ne pas regrouper)
+
+  // ✅ CORRECTION BUG PERMUT/DISSO : Vérifier que les codes DISSO sont compatibles
+  // Deux élèves avec le MÊME code DISSO PEUVENT se permuter (ex: deux D1)
+  // Mais un élève avec code DISSO ne peut pas se permuter avec un élève sans code (ou code différent)
   const disso1 = String(stu1.DISSO || stu1.D || '').trim();
   const disso2 = String(stu2.DISSO || stu2.D || '').trim();
-  if (disso1 && disso1 === disso2) return false; // Même groupe DISSO
-  
+  if (disso1 !== disso2) return false; // Codes DISSO différents ou incompatibles
+
   return true;
 }
 

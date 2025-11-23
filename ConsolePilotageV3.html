@@ -202,20 +202,30 @@
             box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
         }
 
-        /* SPINNERS SIMPLES (flèches natives visibles, fond transparent) */
+        /* SPINNERS DISCRETS (masqués par défaut, visibles au survol) */
         .editor-table input[type="number"]::-webkit-inner-spin-button,
         .editor-table input[type="number"]::-webkit-outer-spin-button {
-            opacity: 1;
+            opacity: 0;
             height: 55px;
             cursor: pointer;
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(30, 41, 59, 0.5);
             margin: 0;
             padding: 0;
+            transition: opacity 0.2s ease, background 0.2s ease;
         }
-        
+
+        /* Afficher les spinners au survol ou focus de l'input */
+        .editor-table input[type="number"]:hover::-webkit-inner-spin-button,
+        .editor-table input[type="number"]:hover::-webkit-outer-spin-button,
+        .editor-table input[type="number"]:focus::-webkit-inner-spin-button,
+        .editor-table input[type="number"]:focus::-webkit-outer-spin-button {
+            opacity: 1;
+        }
+
+        /* Style au survol des spinners eux-mêmes */
         .editor-table input[type="number"]::-webkit-inner-spin-button:hover,
         .editor-table input[type="number"]::-webkit-outer-spin-button:hover {
-            background: rgba(99, 102, 241, 0.3);
+            background: rgba(99, 102, 241, 0.4);
         }
 
         /* PANEL DROITE */

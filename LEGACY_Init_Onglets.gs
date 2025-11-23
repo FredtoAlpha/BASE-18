@@ -196,6 +196,7 @@ function createDefaultHeaders_LEGACY(sheet) {
     'TRA',
     'PART',
     'ABS',
+    'DISPO',       // ✅ FIX: Colonne manquante qui causait le décalage des indices
     'ASSO',
     'DISSO',
     '_CLASS_ASSIGNED',
@@ -310,6 +311,7 @@ function adjustColumnWidths_LEGACY(sheet) {
     'TRA': 60,
     'PART': 60,
     'ABS': 60,
+    'DISPO': 80,         // ✅ FIX: Ajout colonne DISPO
     'ASSO': 80,
     'DISSO': 80,
     '_CLASS_ASSIGNED': 120,

@@ -364,12 +364,19 @@ function isFixed(student) {
 function canSwapStudents_Ultimate(idx1, idx2, cls1Name, cls2Name, idxList1, idxList2, allData, headers, ctx) {
   const s1 = allData[idx1];
   const s2 = allData[idx2];
-  
+
   // Extraire LV2/OPT des élèves
   const idxLV2 = headers.indexOf('LV2');
   const idxOPT = headers.indexOf('OPT');
   const idxDISSO = headers.indexOf('DISSO');
-  
+
+  // ✅ SAFETY CHECK: Vérifier que les colonnes critiques existent
+  if (idxDISSO === -1) {
+    logLine('ERROR', '❌ CRITIQUE: Colonne DISSO non trouvée dans les headers! Headers: ' + headers.join(', '));
+    // Ne pas autoriser le swap si on ne peut pas valider DISSO
+    return false;
+  }
+
   const lv2_s1 = String(s1.row[idxLV2] || '').trim().toUpperCase();
   const opt_s1 = String(s1.row[idxOPT] || '').trim().toUpperCase();
   const lv2_s2 = String(s2.row[idxLV2] || '').trim().toUpperCase();
