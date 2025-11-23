@@ -902,6 +902,128 @@ if (typeof window !== 'undefined') {
   console.log('✅ simplifierNomComplet VERSION 4.3 exposée globalement depuis InterfaceV2');
 }
 
+// ========== PHASE 3: FONCTIONS UTILITAIRES (DRY) ==========
+
+/**
+ * Phase 3.1: Crée un badge standardisé pour éviter la duplication de code
+ * @param {string} type - Type de badge ('lv2', 'opt', 'asso', 'disso', 'mobilite', 'dispo', 'gender')
+ * @param {string} content - Contenu textuel du badge
+ * @param {Object} options - Options {title, compact, className}
+ * @returns {HTMLElement} Badge créé
+ */
+function createBadge(type, content, options = {}) {
+  const badge = document.createElement('span');
+  const { title = '', compact = false, className = '' } = options;
+
+  // Configuration par type
+  const configs = {
+    lv2: {
+      baseClass: 'mini-badge',
+      extraClass: `badge-${content.toUpperCase()}`,
+      displayContent: content.toUpperCase(),
+      defaultTitle: `LV2: ${content}`
+    },
+    opt: {
+      baseClass: 'mini-badge',
+      extraClass: `badge-${content.toUpperCase()}`,
+      displayContent: content.toUpperCase(),
+      defaultTitle: `Option: ${content}`
+    },
+    disso: {
+      baseClass: 'mini-badge badge-disso',
+      displayContent: content.replace(/^D/i, 'D'),
+      defaultTitle: `Dissociation: ${content}`
+    },
+    asso: {
+      baseClass: 'mini-badge badge-asso',
+      displayContent: content.replace(/^A/i, 'A'),
+      defaultTitle: `Association: ${content}`
+    },
+    mobilite: {
+      baseClass: 'mini-badge badge-mobilite',
+      extraClass: compact ? 'badge-compact' : '',
+      displayContent: content,
+      defaultTitle: `Mobilité: ${content}`
+    },
+    dispo: {
+      baseClass: 'badge-dispo',
+      displayContent: content.toUpperCase().trim(),
+      defaultTitle: `Dispositif: ${content}`
+    },
+    gender: {
+      baseClass: 'badge-sexe',
+      extraClass: `sexe-${content}`,
+      displayContent: content === 'F' ? '♀' : '♂',
+      defaultTitle: ''
+    }
+  };
+
+  const config = configs[type];
+  if (!config) {
+    console.error(`Unknown badge type: ${type}`);
+    return badge;
+  }
+
+  // Construire className
+  const classes = [config.baseClass, config.extraClass, className].filter(Boolean).join(' ');
+  badge.className = classes;
+  badge.textContent = config.displayContent;
+  badge.title = title || config.defaultTitle;
+
+  return badge;
+}
+
+/**
+ * Phase 3.2: Compte les élèves par sexe (F/M)
+ * @param {Array} eleves - Liste d'élèves
+ * @returns {Object} {total, F, M}
+ */
+function countBySex(eleves) {
+  const F = eleves.filter(e => e.sexe === 'F').length;
+  const M = eleves.filter(e => e.sexe === 'M').length;
+  return { total: eleves.length, F, M };
+}
+
+/**
+ * Phase 3.3: Vérifie si un élève peut être placé dans une classe sans conflit DISSO
+ * @param {string} eleveId - ID de l'élève à placer
+ * @param {string} targetClass - Classe cible
+ * @param {Object} allEleves - Tous les élèves (STATE.students)
+ * @returns {boolean} true si conflit DISSO détecté
+ */
+function checkDissoConflict(eleveId, targetClass, allEleves) {
+  const eleve = allEleves[eleveId];
+  if (!eleve || !eleve.disso) return false;
+
+  const targetZone = document.querySelector(`[data-classe="${targetClass}"] .droppable-zone`);
+  if (!targetZone) return false;
+
+  const classStudents = Array.from(targetZone.querySelectorAll('.student-card'))
+    .map(c => allEleves[c.dataset.id])
+    .filter(Boolean);
+
+  return classStudents.some(s => s.disso === eleve.disso);
+}
+
+/**
+ * Phase 3.4: Met à jour les statistiques de toutes les classes
+ */
+function updateAllStats() {
+  document.querySelectorAll('.class-column').forEach(column => {
+    const zone = column.querySelector('.droppable-zone');
+    if (!zone) return;
+
+    const eleves = Array.from(zone.querySelectorAll('.student-card'))
+      .map(c => STATE.students[c.dataset.id])
+      .filter(Boolean);
+
+    const counts = countBySex(eleves);
+    column.querySelector('.count').textContent = counts.total;
+    column.querySelector('.count-f').textContent = counts.F;
+    column.querySelector('.count-m').textContent = counts.M;
+  });
+}
+
 // ========== FONCTION DE CRÉATION DES CARTES ÉLÈVES ==========
 function createStudentCard(eleve) {
   /* --- STOP "CARTE VIDE" : on ignore les enregistrements sans id --- */
@@ -924,10 +1046,15 @@ function createStudentCard(eleve) {
   if (STATE.viewMode === 'simple') {
     card.classList.add('simple-mode');
     card.innerHTML = `<div class="simple-line">
-      ${document.body.classList.contains('gender-badges') ? `<span class="badge-sexe sexe-${eleve.sexe}">${eleve.sexe === 'F' ? '♀' : '♂'}</span>` : ''}
       <span class="student-simple-name"></span>
     </div>`;
+    const simpleLine = card.querySelector('.simple-line');
     const nameEl = card.querySelector('.student-simple-name');
+
+    // Gender badge using createBadge()
+    if (document.body.classList.contains('gender-badges')) {
+      simpleLine.insertBefore(createBadge('gender', eleve.sexe), nameEl);
+    }
 
     // Nom complet simplifié
     let nomComplet = simplifierNomComplet(eleve.nom, eleve.prenom);
@@ -976,15 +1103,10 @@ function createStudentCard(eleve) {
     const nomComplet = simplifierNomComplet(eleve.nom, eleve.prenom);
     fullNameElement.textContent = nomComplet;
 
-    // --- NEW CODE FOR GENDER BADGE ---
+    // Gender badge using createBadge()
     if (document.body.classList.contains('gender-badges')) {
-      const genderBadge = document.createElement('span');
-      genderBadge.classList.add('badge-sexe', `sexe-${eleve.sexe}`);
-      genderBadge.textContent = eleve.sexe === 'F' ? '♀' : '♂';
-      // Find the parent of fullNameElement to insert before it
-      fullNameElement.parentNode.insertBefore(genderBadge, fullNameElement);
+      fullNameElement.parentNode.insertBefore(createBadge('gender', eleve.sexe), fullNameElement);
     }
-    // --- END NEW CODE ---
 
     // NOM EN ROUGE si score COM = 1
     if (eleve.scores && eleve.scores.COM && parseInt(eleve.scores.COM) === 1) {
@@ -1003,56 +1125,34 @@ function createStudentCard(eleve) {
     if (eleve.lv2) totalBadges++;
     const compactMode = totalBadges > 3;
 
-    // Badge Mobilité
+    // Badge Mobilité (using createBadge)
     if (eleve.mobilite && eleve.mobilite !== 'LIBRE') {
-      const badge = document.createElement('span');
       let mobText = eleve.mobilite;
-      let mobClass = 'badge-mobilite';
       if (compactMode) {
         const abrevMap = {'CONDI': 'CO', 'FIXE': 'FI', 'PERMUT': 'PER', 'SPEC': 'SP'};
         mobText = abrevMap[eleve.mobilite] || eleve.mobilite;
-        mobClass += ' badge-compact';
       }
-      badge.className = `mini-badge ${mobClass}`;
-      badge.textContent = mobText;
-      badge.title = `Mobilité: ${eleve.mobilite}`;
-      allBadgesContainer.appendChild(badge);
+      allBadgesContainer.appendChild(createBadge('mobilite', mobText, { compact: compactMode }));
     }
 
-    // Badge Dissociation
+    // Badge Dissociation (using createBadge)
     if (eleve.disso) {
-      const badge = document.createElement('span');
-      badge.className = 'mini-badge badge-disso';
-      badge.textContent = eleve.disso.replace(/^D/i, 'D');
-      badge.title = `Dissociation: ${eleve.disso}`;
-      allBadgesContainer.appendChild(badge);
+      allBadgesContainer.appendChild(createBadge('disso', eleve.disso));
     }
 
-    // Badge Association
+    // Badge Association (using createBadge)
     if (eleve.asso) {
-      const badge = document.createElement('span');
-      badge.className = 'mini-badge badge-asso';
-      badge.textContent = eleve.asso.replace(/^A/i, 'A');
-      badge.title = `Association: ${eleve.asso}`;
-      allBadgesContainer.appendChild(badge);
+      allBadgesContainer.appendChild(createBadge('asso', eleve.asso));
     }
 
-    // Badge LV2
+    // Badge LV2 (using createBadge)
     if (eleve.lv2 && eleve.lv2.trim()) {
-      const badge = document.createElement('span');
-      badge.className = `mini-badge badge-${eleve.lv2.toUpperCase()}`;
-      badge.textContent = eleve.lv2.toUpperCase();
-      badge.title = `LV2: ${eleve.lv2}`;
-      allBadgesContainer.appendChild(badge);
+      allBadgesContainer.appendChild(createBadge('lv2', eleve.lv2));
     }
 
-    // Badge OPT
+    // Badge OPT (using createBadge)
     if (eleve.opt && eleve.opt.trim()) {
-      const badge = document.createElement('span');
-      badge.className = `mini-badge badge-${eleve.opt.toUpperCase()}`;
-      badge.textContent = eleve.opt.toUpperCase();
-      badge.title = `Option: ${eleve.opt}`;
-      allBadgesContainer.appendChild(badge);
+      allBadgesContainer.appendChild(createBadge('opt', eleve.opt));
     }
 
     // Source uniquement (pas de scores)
@@ -1062,16 +1162,11 @@ function createStudentCard(eleve) {
     // ========== MODE COMPLETE: NOM + LV2/OPT + BADGES SCORES ==========
     const fullNameElement = card.querySelector('.student-fullname');
     const nomComplet = simplifierNomComplet(eleve.nom, eleve.prenom);
-    
-    // --- NEW CODE FOR GENDER BADGE ---
+
+    // Gender badge using createBadge()
     if (document.body.classList.contains('gender-badges')) {
-      const genderBadge = document.createElement('span');
-      genderBadge.classList.add('badge-sexe', `sexe-${eleve.sexe}`);
-      genderBadge.textContent = eleve.sexe === 'F' ? '♀' : '♂';
-      // Find the parent of fullNameElement to insert before it
-      fullNameElement.parentNode.insertBefore(genderBadge, fullNameElement);
+      fullNameElement.parentNode.insertBefore(createBadge('gender', eleve.sexe), fullNameElement);
     }
-    // --- END NEW CODE ---
 
     fullNameElement.textContent = nomComplet;
     fullNameElement.className = 'student-fullname'; // Reset class in case it was modified
@@ -1082,55 +1177,31 @@ function createStudentCard(eleve) {
       fullNameElement.style.fontWeight = '700';
     }
     
-    // Badge DISPO (nom complet)
+    // Badge DISPO (using createBadge)
     const dispoContainer = card.querySelector('.badge-dispo-container');
     if (eleve.dispo && eleve.dispo.trim()) {
-      const dispoBadge = document.createElement('span');
-      dispoBadge.className = 'badge-dispo';
-      const dispoValue = eleve.dispo.toUpperCase().trim();
-      dispoBadge.textContent = dispoValue; // Afficher le nom complet
-      dispoBadge.title = `Dispositif: ${eleve.dispo}`;
-      dispoContainer.appendChild(dispoBadge);
+      dispoContainer.appendChild(createBadge('dispo', eleve.dispo));
     }
 
     // ========== LIGNE 2: TOUS LES BADGES (LV2, OPT, DISSO, ASSO) ==========
     const allBadgesContainer = card.querySelector('.all-badges');
     allBadgesContainer.style.justifyContent = 'center';
 
-    // Badge LV2
+    // Badges using createBadge()
     if (eleve.lv2 && eleve.lv2.trim()) {
-      const badge = document.createElement('span');
-      badge.className = `mini-badge badge-${eleve.lv2.toUpperCase()}`;
-      badge.textContent = eleve.lv2.toUpperCase();
-      badge.title = `LV2: ${eleve.lv2}`;
-      allBadgesContainer.appendChild(badge);
+      allBadgesContainer.appendChild(createBadge('lv2', eleve.lv2));
     }
 
-    // Badge Option
     if (eleve.opt && eleve.opt.trim()) {
-      const badge = document.createElement('span');
-      badge.className = `mini-badge badge-${eleve.opt.toUpperCase()}`;
-      badge.textContent = eleve.opt.toUpperCase();
-      badge.title = `Option: ${eleve.opt}`;
-      allBadgesContainer.appendChild(badge);
+      allBadgesContainer.appendChild(createBadge('opt', eleve.opt));
     }
 
-    // Badge Dissociation
     if (eleve.disso) {
-      const badge = document.createElement('span');
-      badge.className = 'mini-badge badge-disso';
-      badge.textContent = eleve.disso.replace(/^D/i, 'D');
-      badge.title = `Dissociation: ${eleve.disso}`;
-      allBadgesContainer.appendChild(badge);
+      allBadgesContainer.appendChild(createBadge('disso', eleve.disso));
     }
 
-    // Badge Association
     if (eleve.asso) {
-      const badge = document.createElement('span');
-      badge.className = 'mini-badge badge-asso';
-      badge.textContent = eleve.asso.replace(/^A/i, 'A');
-      badge.title = `Association: ${eleve.asso}`;
-      allBadgesContainer.appendChild(badge);
+      allBadgesContainer.appendChild(createBadge('asso', eleve.asso));
     }
     
     // ========== LIGNE 3: Source + Scores ==========
@@ -1187,10 +1258,11 @@ function createClassColumn(classe, eleves) {
   column.setAttribute('role', 'region');
   column.setAttribute('aria-labelledby', `class-header-${classe}`);
 
+  const counts = countBySex(clean);
   column.querySelector('.classe-name').textContent = classe;
-  column.querySelector('.count').textContent   = clean.length;
-  column.querySelector('.count-f').textContent = clean.filter(e => e.sexe === 'F').length;
-  column.querySelector('.count-m').textContent = clean.filter(e => e.sexe === 'M').length;
+  column.querySelector('.count').textContent = counts.total;
+  column.querySelector('.count-f').textContent = counts.F;
+  column.querySelector('.count-m').textContent = counts.M;
 
   const dropZone = column.querySelector('.droppable-zone');
   dropZone.dataset.classe = classe;
@@ -1883,13 +1955,11 @@ const App = {
     updateColumnStats(column, eleves) {
       if (!column) return;
 
-      const count   = eleves.length;
-      const countF  = eleves.filter(e => e.sexe === 'F').length;
-      const countM  = eleves.filter(e => e.sexe === 'M').length;
+      const counts = countBySex(eleves);
 
-      column.querySelector('.count').textContent    = count;
-      column.querySelector('.count-f').textContent  = countF;
-      column.querySelector('.count-m').textContent  = countM;
+      column.querySelector('.count').textContent = counts.total;
+      column.querySelector('.count-f').textContent = counts.F;
+      column.querySelector('.count-m').textContent = counts.M;
 
       const scoreCats = ['C', 'T', 'P', 'A'];
       const counters  = { C:[0,0,0,0], T:[0,0,0,0], P:[0,0,0,0], A:[0,0,0,0] };
@@ -3747,18 +3817,16 @@ window.addEventListener('DOMContentLoaded', (event) => {
             const check = canSwap(s1.id, s2.id);
             if (!check.ok) return;
             
-            // Calculer l'amélioration (exemple : équilibrage des sexes)
-            const countF1 = students1.filter(s => s.sexe === 'F').length;
-            const countM1 = students1.filter(s => s.sexe === 'M').length;
-            const countF2 = students2.filter(s => s.sexe === 'F').length;
-            const countM2 = students2.filter(s => s.sexe === 'M').length;
-            
-            const diffBefore = Math.abs(countF1 - countM1) + Math.abs(countF2 - countM2);
-            
-            const newCountF1 = countF1 + (s2.sexe === 'F' ? 1 : 0) - (s1.sexe === 'F' ? 1 : 0);
-            const newCountM1 = countM1 + (s2.sexe === 'M' ? 1 : 0) - (s1.sexe === 'M' ? 1 : 0);
-            const newCountF2 = countF2 + (s1.sexe === 'F' ? 1 : 0) - (s2.sexe === 'F' ? 1 : 0);
-            const newCountM2 = countM2 + (s1.sexe === 'M' ? 1 : 0) - (s2.sexe === 'M' ? 1 : 0);
+            // Calculer l'amélioration (équilibrage des sexes)
+            const counts1 = countBySex(students1);
+            const counts2 = countBySex(students2);
+
+            const diffBefore = Math.abs(counts1.F - counts1.M) + Math.abs(counts2.F - counts2.M);
+
+            const newCountF1 = counts1.F + (s2.sexe === 'F' ? 1 : 0) - (s1.sexe === 'F' ? 1 : 0);
+            const newCountM1 = counts1.M + (s2.sexe === 'M' ? 1 : 0) - (s1.sexe === 'M' ? 1 : 0);
+            const newCountF2 = counts2.F + (s1.sexe === 'F' ? 1 : 0) - (s2.sexe === 'F' ? 1 : 0);
+            const newCountM2 = counts2.M + (s1.sexe === 'M' ? 1 : 0) - (s2.sexe === 'M' ? 1 : 0);
             
             const diffAfter = Math.abs(newCountF1 - newCountM1) + Math.abs(newCountF2 - newCountM2);
             
@@ -4900,157 +4968,151 @@ window.updateCharts = updateCharts;
   function toggleKeyboardHelp() {
     const help = document.getElementById('keyboardShortcuts');
     help.classList.toggle('hidden');
-    
+
     if (!help.classList.contains('hidden')) {
       toast('Raccourcis clavier affichés', 'info');
     }
   }
-  
-  // ========== MAPPAGE DES BOUTONS ==========
-  function setupEventListeners() {
-    // Sécuriser tous les addEventListener avec des vérifications
-    const btnRefresh = document.getElementById('btnRefresh');
-    const btnSwap = document.getElementById('btnSwap');
-    const btnUndo = document.getElementById('btnUndo');
-    const btnRedo = document.getElementById('btnRedo');
-    const btnAdmin = document.getElementById('btnAdmin');
-    const btnSimpleView = document.getElementById('btnSimpleView');
-    const btnStats = document.getElementById('btnStats');
-    const btnExport = document.getElementById('btnExport');
-    const btnSaveWIP = document.getElementById('btnSaveWIP');
-    const btnFinalize = document.getElementById('btnFinalize');
-    const btnEditRules = document.getElementById('btnEditRules');
-    const btnDarkMode = document.getElementById('btnDarkMode');
-    const btnZoom = document.getElementById('btnZoom');
-    const btnHelp = document.getElementById('btnHelp');
-    const closeStats = document.getElementById('closeStats');
-    const btnFullscreen = document.getElementById('btnFullscreenMode');
-    const btnAnchor = document.getElementById('btnAnchor');
 
-    // Bouton rafraîchir
-    if (btnRefresh) btnRefresh.addEventListener('click', attemptRefresh);
+  // ========== FONCTION DE SAUVEGARDE AVEC PROGRESSION ==========
+  // Extracted from setupEventListeners for better code organization (Phase 2 refactoring)
+  async function lancerSauvegardeAvecProgression(saveFunctionName, buttonElement, options = {}) {
+    const { title = 'SAUVEGARDE EN COURS...', successMessage = 'Sauvegarde réussie', progressive = true, forcedMode = null } = options;
 
-    // Bouton SWAP dans le header
-    const btnSwapMain = document.getElementById('btnSwapMain');
-    if (btnSwapMain) btnSwapMain.addEventListener('click', toggleSwapMode);
-
-    // NOUVELLE FONCTION DE SAUVEGARDE AVEC PROGRESSION
-    window.lancerSauvegardeAvecProgression = async function lancerSauvegardeAvecProgression(saveFunctionName, buttonElement, options = {}) {
-      const { title = 'SAUVEGARDE EN COURS...', successMessage = 'Sauvegarde réussie', progressive = true, forcedMode = null } = options;
-
-      if (!window.saveProgressManager) {
-        console.error('SaveProgressManager non trouvé !');
-        toast('Erreur : composant de progression manquant.', 'error');
-        return;
-      }
-
-      // Désactiver le bouton
-      if (buttonElement) buttonElement.disabled = true;
-
-      // Démarrer la barre de progression
-      window.saveProgressManager.start();
-      const header = document.querySelector('#saveProgressBar .save-progress-header span');
-      if(header) header.textContent = title;
-
-      try {
-        // Étape 1: Préparation (10%)
-        window.saveProgressManager.updateProgress(10, 'step1');
-        const disposition = exportDisposition();
-
-        if (!disposition || Object.keys(disposition).length === 0) {
-          throw new Error('Aucune classe à sauvegarder');
-        }
-
-        window.saveProgressManager.updateProgress(20, 'step2');
-        await new Promise(resolve => setTimeout(resolve, 200));
-
-        // ✅ SAUVEGARDE PROGRESSIVE CLASSE PAR CLASSE (évite les timeouts)
-        if (progressive && saveFunctionName === 'saveCacheData') {
-          const classes = Object.keys(disposition);
-          const totalClasses = classes.length;
-          let successCount = 0;
-          const errors = [];
-
-          console.log(`📦 Sauvegarde progressive de ${totalClasses} classe(s)...`);
-
-          for (let i = 0; i < totalClasses; i++) {
-            const classe = classes[i];
-            const classMap = { [classe]: disposition[classe] };
-
-            // Mettre à jour la progression (20% à 90%)
-            const progress = 20 + ((i / totalClasses) * 70);
-            window.saveProgressManager.updateProgress(progress, 'step3');
-
-            // Mise à jour du titre avec le nom de la classe en cours
-            if(header) header.innerHTML = `<i class="fas fa-save mr-2"></i>${title} - ${classe} (${i+1}/${totalClasses})`;
-
-            try {
-              // ✅ Sauvegarder UNE classe à la fois
-              const result = await gsRun(saveFunctionName, classMap, STATE.currentMode);
-
-              if (!result || !result.success) {
-                errors.push(`❌ ${classe}: ${result?.message || 'Erreur inconnue'}`);
-                console.error(`❌ Échec sauvegarde ${classe}:`, result);
-              } else {
-                successCount++;
-                console.log(`✅ ${classe} sauvegardée (${successCount}/${totalClasses})`);
-              }
-            } catch (err) {
-              errors.push(`❌ ${classe}: ${err.message}`);
-              console.error(`❌ Exception sauvegarde ${classe}:`, err);
-            }
-
-            // Petit délai pour éviter les timeouts consécutifs
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-
-          // Finalisation (100%)
-          window.saveProgressManager.updateProgress(100, 'step4');
-
-          if (successCount === totalClasses) {
-            window.saveProgressManager.complete(true);
-            toast(`✅ ${successCount} classe(s) sauvegardée(s) avec succès !`, 'success');
-          } else if (successCount > 0) {
-            window.saveProgressManager.complete(true);
-            toast(`⚠️ ${successCount}/${totalClasses} classe(s) sauvegardée(s). Erreurs: ${errors.join(', ')}`, 'warning');
-            console.warn('Erreurs de sauvegarde:', errors);
-          } else {
-            throw new Error('Aucune classe sauvegardée: ' + errors.join(', '));
-          }
-
-        } else {
-          // ✅ SAUVEGARDE CLASSIQUE (pour finalizeClasses et autres)
-          window.saveProgressManager.updateProgress(50, 'step2');
-          await new Promise(resolve => setTimeout(resolve, 300));
-
-          window.saveProgressManager.updateProgress(75, 'step3');
-          
-          // Utiliser le mode forcé si fourni, sinon STATE.currentMode
-          const modeToUse = forcedMode || STATE.currentMode;
-          console.log(`📊 Sauvegarde ${saveFunctionName} avec mode: ${modeToUse}`);
-          
-          const result = await gsRun(saveFunctionName, disposition, modeToUse);
-
-          if (!result || !result.success) {
-            throw new Error(result?.message || 'Une erreur est survenue sur le serveur.');
-          }
-
-          window.saveProgressManager.updateProgress(100, 'step4');
-          window.saveProgressManager.complete(true);
-          toast(result.message || successMessage, 'success');
-        }
-
-      } catch (error) {
-        console.error('Erreur lors de la sauvegarde avec progression:', error);
-        toast(error.message, 'error');
-        window.saveProgressManager.complete(false);
-      } finally {
-        // Réactiver le bouton
-        if (buttonElement) buttonElement.disabled = false;
-      }
+    if (!window.saveProgressManager) {
+      console.error('SaveProgressManager non trouvé !');
+      toast('Erreur : composant de progression manquant.', 'error');
+      return;
     }
 
-    // Bouton BROUILLON - Sauvegarde manuelle sur CACHE
+    // Désactiver le bouton
+    if (buttonElement) buttonElement.disabled = true;
+
+    // Démarrer la barre de progression
+    window.saveProgressManager.start();
+    const header = document.querySelector('#saveProgressBar .save-progress-header span');
+    if(header) header.textContent = title;
+
+    try {
+      // Étape 1: Préparation (10%)
+      window.saveProgressManager.updateProgress(10, 'step1');
+      const disposition = exportDisposition();
+
+      if (!disposition || Object.keys(disposition).length === 0) {
+        throw new Error('Aucune classe à sauvegarder');
+      }
+
+      window.saveProgressManager.updateProgress(20, 'step2');
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // ✅ SAUVEGARDE PROGRESSIVE CLASSE PAR CLASSE (évite les timeouts)
+      if (progressive && saveFunctionName === 'saveCacheData') {
+        const classes = Object.keys(disposition);
+        const totalClasses = classes.length;
+        let successCount = 0;
+        const errors = [];
+
+        console.log(`📦 Sauvegarde progressive de ${totalClasses} classe(s)...`);
+
+        for (let i = 0; i < totalClasses; i++) {
+          const classe = classes[i];
+          const classMap = { [classe]: disposition[classe] };
+
+          // Mettre à jour la progression (20% à 90%)
+          const progress = 20 + ((i / totalClasses) * 70);
+          window.saveProgressManager.updateProgress(progress, 'step3');
+
+          // Mise à jour du titre avec le nom de la classe en cours
+          if(header) header.innerHTML = `<i class="fas fa-save mr-2"></i>${title} - ${classe} (${i+1}/${totalClasses})`;
+
+          try {
+            // ✅ Sauvegarder UNE classe à la fois
+            const result = await gsRun(saveFunctionName, classMap, STATE.currentMode);
+
+            if (!result || !result.success) {
+              errors.push(`❌ ${classe}: ${result?.message || 'Erreur inconnue'}`);
+              console.error(`❌ Échec sauvegarde ${classe}:`, result);
+            } else {
+              successCount++;
+              console.log(`✅ ${classe} sauvegardée (${successCount}/${totalClasses})`);
+            }
+          } catch (err) {
+            errors.push(`❌ ${classe}: ${err.message}`);
+            console.error(`❌ Exception sauvegarde ${classe}:`, err);
+          }
+
+          // Petit délai pour éviter les timeouts consécutifs
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        // Finalisation (100%)
+        window.saveProgressManager.updateProgress(100, 'step4');
+
+        if (successCount === totalClasses) {
+          window.saveProgressManager.complete(true);
+          toast(`✅ ${successCount} classe(s) sauvegardée(s) avec succès !`, 'success');
+        } else if (successCount > 0) {
+          window.saveProgressManager.complete(true);
+          toast(`⚠️ ${successCount}/${totalClasses} classe(s) sauvegardée(s). Erreurs: ${errors.join(', ')}`, 'warning');
+          console.warn('Erreurs de sauvegarde:', errors);
+        } else {
+          throw new Error('Aucune classe sauvegardée: ' + errors.join(', '));
+        }
+
+      } else {
+        // ✅ SAUVEGARDE CLASSIQUE (pour finalizeClasses et autres)
+        window.saveProgressManager.updateProgress(50, 'step2');
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        window.saveProgressManager.updateProgress(75, 'step3');
+
+        // Utiliser le mode forcé si fourni, sinon STATE.currentMode
+        const modeToUse = forcedMode || STATE.currentMode;
+        console.log(`📊 Sauvegarde ${saveFunctionName} avec mode: ${modeToUse}`);
+
+        const result = await gsRun(saveFunctionName, disposition, modeToUse);
+
+        if (!result || !result.success) {
+          throw new Error(result?.message || 'Une erreur est survenue sur le serveur.');
+        }
+
+        window.saveProgressManager.updateProgress(100, 'step4');
+        window.saveProgressManager.complete(true);
+        toast(result.message || successMessage, 'success');
+      }
+
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde avec progression:', error);
+      toast(error.message, 'error');
+      window.saveProgressManager.complete(false);
+    } finally {
+      // Réactiver le bouton
+      if (buttonElement) buttonElement.disabled = false;
+    }
+  }
+
+  // Expose globally for use elsewhere
+  window.lancerSauvegardeAvecProgression = lancerSauvegardeAvecProgression;
+
+  // ========== PHASE 2: EVENT LISTENERS - SPLIT INTO 6 FOCUSED FUNCTIONS ==========
+
+  // 1. NAVIGATION CONTROLS (refresh, undo, redo, swap)
+  function setupNavigationControls() {
+    const btnRefresh = document.getElementById('btnRefresh');
+    const btnUndo = document.getElementById('btnUndo');
+    const btnRedo = document.getElementById('btnRedo');
+    const btnSwapMain = document.getElementById('btnSwapMain');
+
+    if (btnRefresh) btnRefresh.addEventListener('click', attemptRefresh);
+    if (btnUndo) btnUndo.addEventListener('click', undo);
+    if (btnRedo) btnRedo.addEventListener('click', redo);
+    if (btnSwapMain) btnSwapMain.addEventListener('click', toggleSwapMode);
+  }
+
+  // 2. SAVE OPERATIONS (WIP, finalize)
+  function setupSaveOperations() {
+    const btnSaveWIP = document.getElementById('btnSaveWIP');
+
     if (btnSaveWIP) btnSaveWIP.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -5059,24 +5121,22 @@ window.updateCharts = updateCharts;
         successMessage: 'Brouillon sauvegardé avec succès !'
       });
     });
+  }
 
-
-    if (btnUndo) btnUndo.addEventListener('click', undo);
-    if (btnRedo) btnRedo.addEventListener('click', redo);
-    // btnAdmin géré dans la section 1.8 GESTION DU MENU ADMIN
-
-    // Dropdown sélecteur de vue
+  // 3. VIEW MODE CONTROLS (view selector, gender badges, white background)
+  function setupViewModeControls() {
     const viewModeSelect = document.getElementById('viewModeSelect');
+    const showGenderBadges = document.getElementById('showGenderBadges');
+    const whiteBackground = document.getElementById('whiteBackground');
+
+    // View mode selector
     if (viewModeSelect) {
-      // Initialiser la valeur du select selon le mode actuel
       viewModeSelect.value = STATE.viewMode;
 
-      // Event listener pour changement de vue
       viewModeSelect.addEventListener('change', (e) => {
         STATE.viewMode = e.target.value;
         localStorage.setItem('viewMode', STATE.viewMode);
 
-        // Mettre à jour les classes body
         document.body.classList.remove('simple-view', 'essential-view');
         if (STATE.viewMode === 'simple') {
           document.body.classList.add('simple-view');
@@ -5084,7 +5144,7 @@ window.updateCharts = updateCharts;
           document.body.classList.add('essential-view');
         }
 
-        // Recréer toutes les cartes pour appliquer la nouvelle vue
+        // Recreate all cards for new view
         document.querySelectorAll('.droppable-zone').forEach(zone => {
           const ids = Array.from(zone.querySelectorAll('.student-card')).map(c => c.dataset.id);
           zone.innerHTML = '';
@@ -5096,7 +5156,6 @@ window.updateCharts = updateCharts;
           });
         });
 
-        // Ajuster tailles si mode simple
         if (STATE.viewMode === 'simple') {
           setTimeout(() => {
             document.querySelectorAll('.droppable-zone').forEach(zone => {
@@ -5108,7 +5167,7 @@ window.updateCharts = updateCharts;
         toast(`Mode ${e.target.options[e.target.selectedIndex].text}`, 'info');
       });
 
-      // Appliquer la classe body appropriée au chargement
+      // Apply initial body class
       if (STATE.viewMode === 'simple') {
         document.body.classList.add('simple-view');
       } else if (STATE.viewMode === 'essential') {
@@ -5116,15 +5175,9 @@ window.updateCharts = updateCharts;
       }
     }
 
-    // ========== GESTION DES BADGES SEXE ET FOND BLANC ==========
-    const showGenderBadges = document.getElementById('showGenderBadges');
-    const whiteBackground = document.getElementById('whiteBackground');
-
-    // Charger les préférences depuis localStorage
-    const genderBadgesEnabled = localStorage.getItem('showGenderBadges') === 'true';
-    const whiteBgEnabled = localStorage.getItem('whiteBackground') === 'true';
-
+    // Gender badges toggle
     if (showGenderBadges) {
+      const genderBadgesEnabled = localStorage.getItem('showGenderBadges') === 'true';
       showGenderBadges.checked = genderBadgesEnabled;
       if (genderBadgesEnabled) {
         document.body.classList.add('gender-badges');
@@ -5144,7 +5197,9 @@ window.updateCharts = updateCharts;
       });
     }
 
+    // White background toggle
     if (whiteBackground) {
+      const whiteBgEnabled = localStorage.getItem('whiteBackground') === 'true';
       whiteBackground.checked = whiteBgEnabled;
       if (whiteBgEnabled) {
         document.body.classList.add('white-bg');
@@ -5163,27 +5218,30 @@ window.updateCharts = updateCharts;
         }
       });
     }
+  }
 
-    // CORRECTION PROBLÈME 4 : Stats sans overlay bloquant
+  // 4. ACTION BUTTONS (stats, export, rules, dark mode, zoom, help)
+  function setupActionButtons() {
+    const btnStats = document.getElementById('btnStats');
+    const btnExport = document.getElementById('btnExport');
+    const btnEditRules = document.getElementById('btnEditRules');
+    const btnDarkMode = document.getElementById('btnDarkMode');
+    const btnZoom = document.getElementById('btnZoom');
+    const btnHelp = document.getElementById('btnHelp');
+
     if (btnStats) btnStats.addEventListener('click', () => {
       const panel = document.getElementById('statsPanel');
 
-      // Animation synchronisée
       requestAnimationFrame(() => {
-        // 1. Définir la largeur du panneau AVANT de l'afficher
-        const panelWidth = 600; // Largeur par défaut
+        const panelWidth = 600;
         document.documentElement.style.setProperty('--stats-width', panelWidth + 'px');
 
-        // 2. Ajouter la classe pour préparer la grille
         document.body.classList.add('stats-open');
 
-        // 3. Afficher le panneau avec animation
         setTimeout(() => {
           panel.classList.remove('translate-x-full');
-          // Mettre à jour aria-expanded
           btnStats.setAttribute('aria-expanded', 'true');
 
-          // Initialiser les graphiques si pas encore fait
           if (!chartCommunication || !chartDistribution || !chartLV2 || !chartOptions) {
             if (typeof initCharts === 'function') {
               initCharts();
@@ -5194,43 +5252,50 @@ window.updateCharts = updateCharts;
         }, 50);
       });
     });
-    
-    // Export
+
     if (btnExport) btnExport.addEventListener('click', () => {
       document.getElementById('exportModal').classList.remove('hidden');
       document.getElementById('overlay').classList.remove('hidden');
       document.getElementById('overlay').classList.add('active');
     });
 
-    // Édition des règles
     if (btnEditRules) btnEditRules.addEventListener('click', openRulesModal);
-    
-    // Mode sombre
     if (btnDarkMode) btnDarkMode.addEventListener('click', toggleDarkMode);
-    
-    // Zoom
     if (btnZoom) btnZoom.addEventListener('click', toggleZoom);
-    
-    // Aide
     if (btnHelp) btnHelp.addEventListener('click', toggleKeyboardHelp);
-  
-    // Fermeture du panneau statistiques
+  }
+
+  // 5. PANEL CONTROLS (close, fullscreen, anchor, resize)
+  function setupPanelControls() {
+    const closeStats = document.getElementById('closeStats');
+    const btnFullscreen = document.getElementById('btnFullscreen');
+    const btnAnchor = document.getElementById('btnAnchor');
+    const statsPanel = document.getElementById('statsPanel');
+
     if (closeStats) closeStats.addEventListener('click', () => {
       closeStatsPanel();
-      // Mettre à jour aria-expanded
       const btnStats = document.getElementById('btnStats');
       if (btnStats) btnStats.setAttribute('aria-expanded', 'false');
     });
-  
-    // Boutons statistiques avancées
+
     if (btnFullscreen) btnFullscreen.addEventListener('click', toggleFullscreenStats);
     if (btnAnchor) btnAnchor.addEventListener('click', toggleAnchoredStats);
-    
-    // Rendre le panel stats redimensionnable
-    makeResizable(document.getElementById('statsPanel'));
-    
-    // Configurer la recherche
+    if (statsPanel) makeResizable(statsPanel);
+  }
+
+  // 6. SEARCH FEATURE
+  function setupSearchFeature() {
     setupSearch();
+  }
+
+  // ========== MAIN EVENT LISTENERS SETUP (calls all 6 functions) ==========
+  function setupEventListeners() {
+    setupNavigationControls();
+    setupSaveOperations();
+    setupViewModeControls();
+    setupActionButtons();
+    setupPanelControls();
+    setupSearchFeature();
   }
   
   // ========== PANEL REDIMENSIONNABLE ==========
