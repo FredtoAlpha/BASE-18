@@ -315,6 +315,115 @@ function legacy_openStructure() {
   if (sheet) ss.setActiveSheet(sheet);
 }
 
+// ========== FONCTIONS DE VALIDATION ET ROBUSTESSE ==========
+
+/**
+ * Valide qu'un paramètre est une string non vide
+ * @param {*} value - Valeur à valider
+ * @param {string} paramName - Nom du paramètre (pour le message d'erreur)
+ * @returns {Object} {valid: boolean, error: string}
+ */
+function validateNonEmptyString(value, paramName) {
+  if (value === null || value === undefined) {
+    return { valid: false, error: `${paramName} ne peut pas être null ou undefined` };
+  }
+  if (typeof value !== 'string') {
+    return { valid: false, error: `${paramName} doit être une string (reçu: ${typeof value})` };
+  }
+  if (String(value).trim() === '') {
+    return { valid: false, error: `${paramName} ne peut pas être vide` };
+  }
+  return { valid: true };
+}
+
+/**
+ * Valide qu'un paramètre est un objet non null
+ * @param {*} value - Valeur à valider
+ * @param {string} paramName - Nom du paramètre
+ * @returns {Object} {valid: boolean, error: string}
+ */
+function validateObject(value, paramName) {
+  if (value === null || value === undefined) {
+    return { valid: false, error: `${paramName} ne peut pas être null ou undefined` };
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    return { valid: false, error: `${paramName} doit être un objet (reçu: ${typeof value})` };
+  }
+  return { valid: true };
+}
+
+/**
+ * Valide qu'un paramètre est un array non vide
+ * @param {*} value - Valeur à valider
+ * @param {string} paramName - Nom du paramètre
+ * @returns {Object} {valid: boolean, error: string}
+ */
+function validateNonEmptyArray(value, paramName) {
+  if (!Array.isArray(value)) {
+    return { valid: false, error: `${paramName} doit être un array (reçu: ${typeof value})` };
+  }
+  if (value.length === 0) {
+    return { valid: false, error: `${paramName} ne peut pas être vide` };
+  }
+  return { valid: true };
+}
+
+/**
+ * Valide qu'un mode est valide
+ * @param {string} mode - Mode à valider
+ * @returns {Object} {valid: boolean, error: string}
+ */
+function validateMode(mode) {
+  const validModes = ['source', 'test', 'fin', 'cache', 'previous', 'TEST', 'FIN', 'CACHE', 'PREVIOUS'];
+  if (!mode || !validModes.includes(mode.toString().trim().toLowerCase())) {
+    return { valid: false, error: `Mode invalide: ${mode}. Modes valides: ${validModes.join(', ')}` };
+  }
+  return { valid: true };
+}
+
+/**
+ * Valide la cohérence des données de disposition
+ * @param {Object} disposition - Disposition à valider
+ * @returns {Object} {valid: boolean, errors: Array}
+ */
+function validateDispositionConsistency(disposition) {
+  const errors = [];
+
+  for (const className in disposition) {
+    const classData = disposition[className];
+
+    // Vérifier que headers et students sont présents
+    if (!classData.headers || !Array.isArray(classData.headers)) {
+      errors.push({ className, error: 'headers manquants ou invalides' });
+      continue;
+    }
+
+    if (!classData.students || !Array.isArray(classData.students)) {
+      errors.push({ className, error: 'students manquants ou invalides' });
+      continue;
+    }
+
+    // ✅ Vérifier que chaque student a le bon nombre de colonnes
+    const expectedColumns = classData.headers.length;
+    classData.students.forEach((student, idx) => {
+      if (!Array.isArray(student)) {
+        errors.push({ className, studentIndex: idx, error: 'student n\'est pas un array' });
+      } else if (student.length !== expectedColumns) {
+        errors.push({
+          className,
+          studentIndex: idx,
+          error: `Nombre de colonnes incorrect (attendu: ${expectedColumns}, reçu: ${student.length})`
+        });
+      }
+    });
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
 // ========== FONCTIONS BACKEND POUR INTERFACEV2 ==========
 
 /**
@@ -342,6 +451,7 @@ function resolveSheetFilter(mode) {
 /**
  * Collecte les données brutes des onglets selon le mode
  * @param {string} mode - Mode de collecte
+ * @param {Spreadsheet} ss - Instance du spreadsheet (optionnel)
  * @returns {Object} Données brutes par classe
  */
 function collectClassesDataByMode(mode) {
@@ -351,16 +461,31 @@ function collectClassesDataByMode(mode) {
   const classesData = {};
 
   sheets.forEach(sheet => {
-    const data = sheet.getDataRange().getValues();
-    if (data.length < 2) return;
+    try {
+      const data = sheet.getDataRange().getValues();
+      // ✅ Cas limite : onglet vide ou avec seulement les en-têtes
+      if (data.length < 2) {
+        Logger.log(`⚠️ Onglet ${sheet.getName()}: pas de données (${data.length} lignes)`);
+        return;
+      }
 
-    classesData[sheet.getName()] = {
-      sheetName: sheet.getName(),
-      headers: data[0],
-      students: data.slice(1).filter(row => row[0] && String(row[0]).trim() !== ''),
-      rowCount: data.length - 1,
-      timestamp: new Date().getTime()
-    };
+      // ✅ Cas limite : vérification que la première ligne contient des en-têtes
+      const headers = data[0];
+      if (!Array.isArray(headers) || headers.length === 0) {
+        Logger.log(`⚠️ Onglet ${sheet.getName()}: en-têtes invalides`);
+        return;
+      }
+
+      classesData[sheet.getName()] = {
+        sheetName: sheet.getName(),
+        headers: headers,
+        students: data.slice(1).filter(row => row && row[0] && String(row[0]).trim() !== ''),
+        rowCount: data.length - 1,
+        timestamp: new Date().getTime()
+      };
+    } catch (sheetError) {
+      Logger.log(`❌ Erreur lors de la lecture de ${sheet.getName()}: ${sheetError.toString()}`);
+    }
   });
 
   return classesData;
@@ -380,20 +505,28 @@ function mapStudentsForInterface(headers, rows) {
   ];
 
   return rows.map(row => {
+    // ✅ Cas limite : vérification de la ligne
+    if (!Array.isArray(row) || row.length === 0) {
+      Logger.log('⚠️ Ligne invalide détectée, ignorée');
+      return null;
+    }
+
     const eleve = {};
 
     // Mapper toutes les colonnes
     headers.forEach((header, idx) => {
       if (!header) return;
+      // ✅ Cas limite : vérification d'index hors limites
+      if (idx >= row.length) return;
       eleve[header] = row[idx];
       if (!eleve.id && header === 'ID_ELEVE') {
-        eleve.id = String(row[idx] || '').trim();
+        eleve.id = toTrimmedString(row[idx]); // ✅ Utilisation fonction utilitaire
       }
     });
 
     // ID par défaut (première colonne)
     if (!eleve.id) {
-      eleve.id = String(row[0] || '').trim();
+      eleve.id = toTrimmedString(row[0]); // ✅ Utilisation fonction utilitaire
     }
 
     // Créer l'objet scores pour le frontend
@@ -410,7 +543,7 @@ function mapStudentsForInterface(headers, rows) {
     });
 
     return eleve;
-  }).filter(eleve => eleve.id);
+  }).filter(eleve => eleve !== null && eleve.id); // ✅ Filtrer les null et élèves sans ID
 }
 
 /**
@@ -473,20 +606,30 @@ function loadStructureRules() {
     const capacity = effectifIdx === -1 ? DEFAULTS.CLASS_CAPACITY : Number(row[effectifIdx]) || DEFAULTS.CLASS_CAPACITY;
     const quotas = {};
 
+    // ✅ Optimisation: Boucle unique au lieu de split + map + filter + forEach
     if (optionsIdx !== -1 && row[optionsIdx]) {
-      String(row[optionsIdx])
-        .split(',')
-        .map(part => part.trim())
-        .filter(Boolean)
-        .forEach(part => {
-          let [opt, quota] = part.split(/[:=]/);
-          opt = (opt || '').trim();
-          quota = (quota || '').trim();
-          if (opt) quotas[opt] = Number(quota) || 0;
-        });
+      const parts = toTrimmedString(row[optionsIdx]).split(',');
+      for (let j = 0; j < parts.length; j++) {
+        const part = parts[j].trim();
+        if (!part) continue;
+
+        const [optRaw, quotaRaw] = part.split(/[:=]/);
+        const opt = toTrimmedString(optRaw); // ✅ Utilisation fonction utilitaire
+        if (opt) {
+          quotas[opt] = Number(toTrimmedString(quotaRaw)) || 0;
+        }
+      }
     }
 
     rules[classe] = { capacity, quotas };
+  }
+
+  // ✅ Sauvegarde dans le cache (TTL: 10 minutes = 600 secondes)
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.put('STRUCTURE_RULES', JSON.stringify(rules), 600);
+  } catch (e) {
+    Logger.log('⚠️ Cache write error: ' + e.toString());
   }
 
   return rules;
@@ -500,6 +643,12 @@ function loadStructureRules() {
  */
 function getClassesDataForInterfaceV2(mode = 'TEST') {
   try {
+    // ✅ Validation du paramètre mode
+    const modeValidation = validateMode(mode);
+    if (!modeValidation.valid) {
+      return { success: false, error: modeValidation.error, data: [] };
+    }
+
     const classesData = collectClassesDataByMode(mode);
     if (!classesData || Object.keys(classesData).length === 0) {
       return { success: false, error: 'Aucun onglet trouvé pour le mode: ' + mode, data: [] };
@@ -516,7 +665,7 @@ function getClassesDataForInterfaceV2(mode = 'TEST') {
       };
     });
 
-    const rules = loadStructureRules();
+    const rules = loadStructureRules(ss);
 
     return {
       success: true,
@@ -528,7 +677,8 @@ function getClassesDataForInterfaceV2(mode = 'TEST') {
     Logger.log(`❌ Erreur getClassesDataForInterfaceV2: ${e.message}`);
     return {
       success: false,
-      error: e.toString(),
+      error: errorMessage,
+      details: e.toString(),
       data: []
     };
   }
@@ -541,7 +691,8 @@ function getClassesDataForInterfaceV2(mode = 'TEST') {
  * @returns {Object} {success: boolean, data: Object}
  */
 function getClassesData(mode = 'source') {
-  const classesData = collectClassesDataByMode(mode);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const classesData = collectClassesDataByMode(mode, ss);
 
   return {
     success: true,
@@ -596,7 +747,7 @@ function getBridgeContextAndClear() {
 }
 
 /**
- * Sauvegarde les données dans le cache (PropertiesService uniquement)
+ * Sauvegarde les données dans le cache (PropertiesService uniquement) avec gestion de quota
  * @param {Object} cacheData - Données à sauvegarder
  * @returns {Object} {success: boolean}
  */
@@ -615,7 +766,7 @@ function saveCacheData(cacheData) {
  * @param {Object} disposition - Objet {className: {headers: [], students: []}}
  * @returns {Object} {success: boolean, saved: number, failed: number, errors: Array, timestamp: string}
  */
-function saveDispositionToSheets(disposition) {
+function saveDispositionToSheets(disposition, ss = null) {
   try {
     // Validation des paramètres
     if (!disposition || typeof disposition !== 'object' || Object.keys(disposition).length === 0) {
@@ -680,13 +831,14 @@ function saveDispositionToSheets(disposition) {
     Logger.log(`❌ Erreur critique saveDispositionToSheets: ${e.message}`);
     return {
       success: false,
-      error: e.toString()
+      error: errorMessage,
+      details: e.toString()
     };
   }
 }
 
 /**
- * Charge les données depuis le cache
+ * Charge les données depuis le cache avec gestion d'erreur robuste
  * @returns {Object} {success: boolean, data: Object}
  */
 function loadCacheData() {
@@ -704,9 +856,10 @@ function loadCacheData() {
  * Sauvegarde un snapshot des élèves
  * @param {Object} disposition - Disposition des élèves par classe
  * @param {string} mode - Mode de sauvegarde
+ * @param {Spreadsheet} ss - Instance du spreadsheet (optionnel)
  * @returns {Object} {success: boolean, message: string}
  */
-function saveElevesSnapshot(disposition, mode) {
+function saveElevesSnapshot(disposition, mode, ss = null) {
   try {
     const ss = getActiveSpreadsheetCached();
     
@@ -748,9 +901,10 @@ function getUiSettings() {
 
 /**
  * Récupère le mot de passe admin depuis _CONFIG B3
+ * @param {Spreadsheet} ss - Instance du spreadsheet (optionnel)
  * @returns {string} Mot de passe admin
  */
-function getAdminPasswordFromConfig() {
+function getAdminPasswordFromConfig(ss = null) {
   try {
     const ss = getActiveSpreadsheetCached();
     const configSheet = ss.getSheetByName('_CONFIG');
@@ -761,7 +915,7 @@ function getAdminPasswordFromConfig() {
     }
 
     const password = configSheet.getRange('B3').getValue();
-    return String(password || '').trim();
+    return toTrimmedString(password); // ✅ Utilisation fonction utilitaire
   } catch (e) {
     Logger.log(`❌ Erreur getAdminPasswordFromConfig: ${e.message}`);
     return '';
@@ -797,9 +951,10 @@ function verifierMotDePasseAdmin(password) {
 
 /**
  * Charge les onglets FIN avec les scores (colonnes U et V)
+ * @param {Spreadsheet} ss - Instance du spreadsheet (optionnel)
  * @returns {Object} {success: boolean, data: Object}
  */
-function loadFINSheetsWithScores() {
+function loadFINSheetsWithScores(ss = null) {
   try {
     const ss = getActiveSpreadsheetCached();
     const finSheets = ss.getSheets().filter(s => SHEET_PATTERNS.FIN.test(s.getName()));
@@ -844,9 +999,10 @@ function loadFINSheetsWithScores() {
 /**
  * Met à jour les règles de structure dans _STRUCTURE
  * @param {Object} newRules - Nouvelles règles {classe: {capacity, quotas}}
+ * @param {Spreadsheet} ss - Instance du spreadsheet (optionnel)
  * @returns {Object} {success: boolean}
  */
-function updateStructureRules(newRules) {
+function updateStructureRules(newRules, ss = null) {
   try {
     // Validation des paramètres
     if (!newRules || typeof newRules !== 'object' || Object.keys(newRules).length === 0) {
@@ -871,7 +1027,7 @@ function updateStructureRules(newRules) {
 
     // Mettre à jour les règles
     for (let i = headerRow + 1; i < data.length; i++) {
-      const classe = String(data[i][destIdx] || '').trim();
+      const classe = toTrimmedString(data[i][destIdx]); // ✅ Utilisation fonction utilitaire
       if (!classe || !newRules[classe]) continue;
 
       const rule = newRules[classe];
@@ -893,6 +1049,14 @@ function updateStructureRules(newRules) {
     // Écrire les données mises à jour
     sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
 
+    // ✅ Invalider le cache après mise à jour
+    try {
+      const cache = CacheService.getScriptCache();
+      cache.remove('STRUCTURE_RULES');
+    } catch (e) {
+      Logger.log('⚠️ Cache invalidation error: ' + e.toString());
+    }
+
     return { success: true };
   } catch (e) {
     Logger.log(`❌ Erreur updateStructureRules: ${e.message}`);
@@ -902,9 +1066,10 @@ function updateStructureRules(newRules) {
 
 /**
  * Récupère les scores depuis les onglets INT
+ * @param {Spreadsheet} ss - Instance du spreadsheet (optionnel)
  * @returns {Object} {success: boolean, scores: Array}
  */
-function getINTScores() {
+function getINTScores(ss = null) {
   try {
     const ss = getActiveSpreadsheetCached();
     const intSheets = ss.getSheets().filter(s => SHEET_PATTERNS.INT.test(s.getName()));
@@ -919,23 +1084,23 @@ function getINTScores() {
       const data = sheet.getDataRange().getValues();
       if (data.length < 2) return;
 
-      const headers = data[0].map(h => String(h || '').toUpperCase());
+      const headers = data[0].map(h => toUpperTrimmedString(h)); // ✅ Utilisation fonction utilitaire
       const idIdx = headers.findIndex(h => h.includes('ID') || h.includes('ELEVE'));
       const mathIdx = headers.findIndex(h => h.includes('MATH') || h === 'M');
       const frIdx = headers.findIndex(h => h.includes('FR') || h.includes('FRANÇAIS') || h === 'F');
 
       if (idIdx === -1) return;
 
-      data.slice(1).forEach(row => {
-        const id = String(row[idIdx] || '').trim();
-        if (!id) return;
-
-        scores.push({
-          id,
+      // ✅ Optimisation: filter + map au lieu de forEach avec early return
+      const sheetScores = data.slice(1)
+        .filter(row => row[idIdx] && toTrimmedString(row[idIdx]))
+        .map(row => ({
+          id: toTrimmedString(row[idIdx]), // ✅ Utilisation fonction utilitaire
           MATH: mathIdx !== -1 ? (Number(row[mathIdx]) || 0) : 0,
           FR: frIdx !== -1 ? (Number(row[frIdx]) || 0) : 0
-        });
-      });
+        }));
+
+      scores.push(...sheetScores);
     });
 
     return { success: true, scores };
