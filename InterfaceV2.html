@@ -973,7 +973,10 @@
   
   <!-- 1. CHARGER LES MODULES DE BASE EN PREMIER (Config, State, Utils, Toast, Spinner) -->
   <?!= include('InterfaceV2_Modules_Loader'); ?>
-  
+
+  <!-- 1.5 PERFORMANCE OPTIMIZER - Phase 11 (Debounce, DOM Cache, Batch Operations) -->
+  <?!= include('PerformanceOptimizer'); ?>
+
   <!-- 2. CHARGER LE SCRIPT PRINCIPAL (qui dépend des modules de base) -->
   <?!= include('InterfaceV2_CoreScript'); ?>
 
