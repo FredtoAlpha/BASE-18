@@ -516,13 +516,302 @@ const UIComponents = (function() {
   };
 
   // ════════════════════════════════════════════════════════════════
+  // SKELETON LOADERS - Composants de chargement
+  // ════════════════════════════════════════════════════════════════
+
+  const Skeleton = {
+    /**
+     * Crée un skeleton loader pour grilles (tables/data grids)
+     * @param {Object} options - Configuration
+     * @param {number} options.rows - Nombre de lignes (défaut: 5)
+     * @param {number} options.columns - Nombre de colonnes (défaut: 4)
+     * @param {boolean} options.hasHeader - Inclure une ligne d'en-tête (défaut: true)
+     * @returns {HTMLElement}
+     */
+    grid(options = {}) {
+      const { rows = 5, columns = 4, hasHeader = true } = options;
+
+      const container = document.createElement('div');
+      container.className = 'skeleton-grid';
+      container.setAttribute('role', 'status');
+      container.setAttribute('aria-label', 'Chargement des données');
+      container.style.cssText = `
+        width: 100%;
+        border-radius: 8px;
+        overflow: hidden;
+        background: white;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      `;
+
+      // En-tête (optionnel)
+      if (hasHeader) {
+        const header = document.createElement('div');
+        header.style.cssText = `
+          display: grid;
+          grid-template-columns: repeat(${columns}, 1fr);
+          gap: 12px;
+          padding: 16px;
+          background: #f9fafb;
+          border-bottom: 1px solid #e5e7eb;
+        `;
+
+        for (let i = 0; i < columns; i++) {
+          const cell = this._createPulse(80, 20);
+          header.appendChild(cell);
+        }
+        container.appendChild(header);
+      }
+
+      // Lignes de données
+      for (let r = 0; r < rows; r++) {
+        const row = document.createElement('div');
+        row.style.cssText = `
+          display: grid;
+          grid-template-columns: repeat(${columns}, 1fr);
+          gap: 12px;
+          padding: 16px;
+          border-bottom: 1px solid #f3f4f6;
+        `;
+
+        for (let c = 0; c < columns; c++) {
+          const cell = this._createPulse(60 + Math.random() * 40, 16);
+          row.appendChild(cell);
+        }
+        container.appendChild(row);
+      }
+
+      return container;
+    },
+
+    /**
+     * Crée un skeleton loader pour listes verticales
+     * @param {Object} options - Configuration
+     * @param {number} options.items - Nombre d'items (défaut: 6)
+     * @param {boolean} options.hasAvatar - Inclure des avatars (défaut: true)
+     * @param {boolean} options.hasSecondary - Ligne secondaire (défaut: true)
+     * @returns {HTMLElement}
+     */
+    list(options = {}) {
+      const { items = 6, hasAvatar = true, hasSecondary = true } = options;
+
+      const container = document.createElement('div');
+      container.className = 'skeleton-list';
+      container.setAttribute('role', 'status');
+      container.setAttribute('aria-label', 'Chargement de la liste');
+      container.style.cssText = `
+        width: 100%;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      `;
+
+      for (let i = 0; i < items; i++) {
+        const item = document.createElement('div');
+        item.style.cssText = `
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          padding: 16px;
+          border-bottom: ${i < items - 1 ? '1px solid #f3f4f6' : 'none'};
+        `;
+
+        // Avatar (optionnel)
+        if (hasAvatar) {
+          const avatar = this._createPulse(48, 48, '50%');
+          item.appendChild(avatar);
+        }
+
+        // Contenu texte
+        const content = document.createElement('div');
+        content.style.cssText = 'flex: 1; display: flex; flex-direction: column; gap: 8px;';
+
+        const primary = this._createPulse(70 + Math.random() * 30, 16);
+        content.appendChild(primary);
+
+        if (hasSecondary) {
+          const secondary = this._createPulse(50 + Math.random() * 30, 14);
+          content.appendChild(secondary);
+        }
+
+        item.appendChild(content);
+        container.appendChild(item);
+      }
+
+      return container;
+    },
+
+    /**
+     * Crée un skeleton loader pour formulaires
+     * @param {Object} options - Configuration
+     * @param {number} options.fields - Nombre de champs (défaut: 4)
+     * @param {boolean} options.hasButton - Inclure un bouton (défaut: true)
+     * @returns {HTMLElement}
+     */
+    form(options = {}) {
+      const { fields = 4, hasButton = true } = options;
+
+      const container = document.createElement('div');
+      container.className = 'skeleton-form';
+      container.setAttribute('role', 'status');
+      container.setAttribute('aria-label', 'Chargement du formulaire');
+      container.style.cssText = `
+        width: 100%;
+        background: white;
+        border-radius: 8px;
+        padding: 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      `;
+
+      for (let i = 0; i < fields; i++) {
+        const field = document.createElement('div');
+        field.style.cssText = 'margin-bottom: 20px;';
+
+        // Label
+        const label = this._createPulse(30 + Math.random() * 20, 14);
+        label.style.marginBottom = '8px';
+        field.appendChild(label);
+
+        // Input
+        const input = this._createPulse(100, 40, '4px');
+        field.appendChild(input);
+
+        container.appendChild(field);
+      }
+
+      // Bouton (optionnel)
+      if (hasButton) {
+        const button = this._createPulse(120, 40, '6px');
+        button.style.marginTop = '8px';
+        container.appendChild(button);
+      }
+
+      return container;
+    },
+
+    /**
+     * Crée un skeleton loader pour cartes (cards/panels)
+     * @param {Object} options - Configuration
+     * @param {number} options.cards - Nombre de cartes (défaut: 3)
+     * @param {boolean} options.hasImage - Inclure une image (défaut: true)
+     * @param {number} options.textLines - Lignes de texte (défaut: 3)
+     * @returns {HTMLElement}
+     */
+    cards(options = {}) {
+      const { cards = 3, hasImage = true, textLines = 3 } = options;
+
+      const container = document.createElement('div');
+      container.className = 'skeleton-cards';
+      container.setAttribute('role', 'status');
+      container.setAttribute('aria-label', 'Chargement des cartes');
+      container.style.cssText = `
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+        width: 100%;
+      `;
+
+      for (let i = 0; i < cards; i++) {
+        const card = document.createElement('div');
+        card.style.cssText = `
+          background: white;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        `;
+
+        // Image (optionnel)
+        if (hasImage) {
+          const image = this._createPulse(100, 160, '0');
+          card.appendChild(image);
+        }
+
+        // Contenu
+        const content = document.createElement('div');
+        content.style.cssText = 'padding: 16px;';
+
+        // Titre
+        const title = this._createPulse(80, 20);
+        title.style.marginBottom = '12px';
+        content.appendChild(title);
+
+        // Lignes de texte
+        for (let t = 0; t < textLines; t++) {
+          const line = this._createPulse(
+            t === textLines - 1 ? 60 : 100,
+            14
+          );
+          line.style.marginBottom = '8px';
+          content.appendChild(line);
+        }
+
+        card.appendChild(content);
+        container.appendChild(card);
+      }
+
+      return container;
+    },
+
+    /**
+     * Crée un élément pulse (animation de chargement)
+     * @private
+     */
+    _createPulse(widthPercent, height, borderRadius = '4px') {
+      const element = document.createElement('div');
+      element.style.cssText = `
+        width: ${widthPercent}%;
+        height: ${height}px;
+        background: linear-gradient(
+          90deg,
+          #e5e7eb 25%,
+          #f3f4f6 50%,
+          #e5e7eb 75%
+        );
+        background-size: 200% 100%;
+        border-radius: ${borderRadius};
+        animation: skeleton-pulse 1.5s ease-in-out infinite;
+      `;
+      return element;
+    },
+
+    /**
+     * Injecte les styles CSS pour les animations
+     */
+    _injectStyles() {
+      if (document.getElementById('skeleton-styles')) return;
+
+      const style = document.createElement('style');
+      style.id = 'skeleton-styles';
+      style.textContent = `
+        @keyframes skeleton-pulse {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+
+        .skeleton-grid:focus,
+        .skeleton-list:focus,
+        .skeleton-form:focus,
+        .skeleton-cards:focus {
+          outline: 2px solid #3b82f6;
+          outline-offset: 2px;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  };
+
+  // Injecter les styles au chargement
+  Skeleton._injectStyles();
+
+  // ════════════════════════════════════════════════════════════════
   // API PUBLIQUE
   // ════════════════════════════════════════════════════════════════
 
   return {
     LoadingOverlay,
     Toast,
-    Tooltip
+    Tooltip,
+    Skeleton
   };
 
 })();

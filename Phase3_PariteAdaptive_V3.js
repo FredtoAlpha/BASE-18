@@ -291,7 +291,7 @@ function logParityDecision_V3(C, details) {
 
   } catch (e) {
     // Ne jamais casser la phase 3 pour un simple log
-    console.warn('Erreur logParityDecision_V3', e);
+    Logger.warn('Erreur logParityDecision_V3', { phase: 'Phase3' }, e);
   }
 }
 
