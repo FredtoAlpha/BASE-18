@@ -91,13 +91,6 @@ function deverrouillerStructure() {
   }
 }
 
-function legacy_runFullPipeline() {
-  if (typeof legacy_runFullPipeline_PRIME === 'function') {
-    return legacy_runFullPipeline_PRIME();
-  }
-  SpreadsheetApp.getUi().alert("❌ Erreur : Moteur LEGACY introuvable.");
-}
-
 function legacy_viewSourceClasses() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sourceSheets = ss.getSheets().filter(s => /.+°\d+$/.test(s.getName())); // ✅ Pattern universel
