@@ -2,7 +2,7 @@
  * ===================================================================
  * 🚀 BASE-17 ULTIMATE - POINT D'ENTRÉE PRINCIPAL
  * ===================================================================
- * Version : 3.6 (Phase 7 - Améliorations séquentielles)
+ * Version : 3.7 (Phase 8 - Gestion d'erreurs robuste)
  *
  * Ce fichier contient les fonctions principales pour l'application
  * de gestion de répartition des élèves. Il gère:
@@ -50,6 +50,65 @@ const SHEET_PATTERNS = {
   PREVIOUS: /PREVIOUS$/i,
   INT: /INT$/i
 };
+
+// ==================== UTILITAIRES ====================
+
+/**
+ * Parse JSON de manière sécurisée avec gestion d'erreurs
+ * @param {string} jsonString - Chaîne JSON à parser
+ * @param {*} defaultValue - Valeur par défaut en cas d'erreur (default: null)
+ * @returns {*} Objet parsé ou defaultValue
+ */
+function safeJSONParse(jsonString, defaultValue = null) {
+  if (!jsonString || typeof jsonString !== 'string') {
+    return defaultValue;
+  }
+
+  try {
+    return JSON.parse(jsonString);
+  } catch (e) {
+    Logger.log(`⚠️ Erreur JSON.parse: ${e.message} | Input: ${jsonString.substring(0, 100)}...`);
+    return defaultValue;
+  }
+}
+
+/**
+ * Récupère une propriété utilisateur de manière sécurisée
+ * @param {string} key - Clé de la propriété
+ * @param {*} defaultValue - Valeur par défaut
+ * @returns {*} Valeur parsée ou defaultValue
+ */
+function safeGetUserProperty(key, defaultValue = null) {
+  try {
+    const props = PropertiesService.getUserProperties();
+    const value = props.getProperty(key);
+
+    if (!value) return defaultValue;
+
+    return safeJSONParse(value, defaultValue);
+  } catch (e) {
+    Logger.log(`❌ Erreur safeGetUserProperty('${key}'): ${e.message}`);
+    return defaultValue;
+  }
+}
+
+/**
+ * Définit une propriété utilisateur de manière sécurisée
+ * @param {string} key - Clé de la propriété
+ * @param {*} value - Valeur à stocker (sera JSONifiée)
+ * @returns {boolean} true si succès, false sinon
+ */
+function safeSetUserProperty(key, value) {
+  try {
+    const props = PropertiesService.getUserProperties();
+    const jsonValue = JSON.stringify(value);
+    props.setProperty(key, jsonValue);
+    return true;
+  } catch (e) {
+    Logger.log(`❌ Erreur safeSetUserProperty('${key}'): ${e.message}`);
+    return false;
+  }
+}
 
 // ==================== MENU ET INITIALISATION ====================
 
@@ -458,14 +517,12 @@ function getClassesData(mode = 'source') {
  */
 function getLastCacheInfo() {
   try {
-    const props = PropertiesService.getUserProperties();
-    const cacheData = props.getProperty('INTERFACEV2_CACHE');
-    
-    if (!cacheData) {
+    const cache = safeGetUserProperty('INTERFACEV2_CACHE');
+
+    if (!cache) {
       return { success: true, exists: false };
     }
-    
-    const cache = JSON.parse(cacheData);
+
     return {
       success: true,
       exists: true,
@@ -473,6 +530,7 @@ function getLastCacheInfo() {
       mode: cache.mode || 'unknown'
     };
   } catch (e) {
+    Logger.log(`❌ Erreur getLastCacheInfo: ${e.message}`);
     return { success: false, error: e.toString() };
   }
 }
@@ -483,17 +541,18 @@ function getLastCacheInfo() {
  */
 function getBridgeContextAndClear() {
   try {
-    const props = PropertiesService.getUserProperties();
-    const context = props.getProperty('JULES_CONTEXT');
-    
+    const context = safeGetUserProperty('JULES_CONTEXT');
+
     if (!context) {
       return { success: true, context: null };
     }
-    
-    props.deleteProperty('JULES_CONTEXT');
-    
-    return { success: true, context: JSON.parse(context) };
+
+    // Effacer la propriété après lecture
+    PropertiesService.getUserProperties().deleteProperty('JULES_CONTEXT');
+
+    return { success: true, context };
   } catch (e) {
+    Logger.log(`❌ Erreur getBridgeContextAndClear: ${e.message}`);
     return { success: false, error: e.toString() };
   }
 }
@@ -504,19 +563,19 @@ function getBridgeContextAndClear() {
  * @returns {Object} {success: boolean}
  */
 function saveCacheData(cacheData) {
-  try {
-    const props = PropertiesService.getUserProperties();
-    props.setProperty('INTERFACEV2_CACHE', JSON.stringify(cacheData));
-    return { success: true };
-  } catch (e) {
-    return { success: false, error: e.toString() };
+  const success = safeSetUserProperty('INTERFACEV2_CACHE', cacheData);
+
+  if (!success) {
+    return { success: false, error: 'Échec de la sauvegarde du cache' };
   }
+
+  return { success: true };
 }
 
 /**
  * Sauvegarde la disposition dans les onglets Google Sheets (création des onglets CACHE)
  * @param {Object} disposition - Objet {className: {headers: [], students: []}}
- * @returns {Object} {success: boolean, saved: number, timestamp: string}
+ * @returns {Object} {success: boolean, saved: number, failed: number, errors: Array, timestamp: string}
  */
 function saveDispositionToSheets(disposition) {
   try {
@@ -527,46 +586,60 @@ function saveDispositionToSheets(disposition) {
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let savedCount = 0;
+    let failedCount = 0;
+    const errors = [];
 
     for (const className in disposition) {
-      const classData = disposition[className];
+      try {
+        const classData = disposition[className];
 
-      // Nom de l'onglet CACHE (ex: "5°1 TEST" -> "5°1 CACHE")
-      const cacheSheetName = className.replace(/(TEST|FIN|PREVIOUS)$/i, 'CACHE');
+        // Validation des données de classe
+        if (!classData || !classData.headers || !classData.students) {
+          throw new Error(`Données invalides pour la classe ${className}`);
+        }
 
-      // Créer ou obtenir l'onglet CACHE
-      let cacheSheet = ss.getSheetByName(cacheSheetName);
-      if (!cacheSheet) {
-        cacheSheet = ss.insertSheet(cacheSheetName);
-        Logger.log(`✅ Onglet créé: ${cacheSheetName}`);
-      } else {
-        cacheSheet.clearContents();
-        Logger.log(`🔄 Onglet vidé: ${cacheSheetName}`);
-      }
+        // Nom de l'onglet CACHE (ex: "5°1 TEST" -> "5°1 CACHE")
+        const cacheSheetName = className.replace(/(TEST|FIN|PREVIOUS)$/i, 'CACHE');
 
-      // Écrire les données
-      if (classData.headers && classData.students) {
+        // Créer ou obtenir l'onglet CACHE
+        let cacheSheet = ss.getSheetByName(cacheSheetName);
+        if (!cacheSheet) {
+          cacheSheet = ss.insertSheet(cacheSheetName);
+          Logger.log(`✅ Onglet créé: ${cacheSheetName}`);
+        } else {
+          cacheSheet.clearContents();
+          Logger.log(`🔄 Onglet vidé: ${cacheSheetName}`);
+        }
+
+        // Écrire les données
         const allRows = [classData.headers, ...classData.students];
         if (allRows.length > 0 && classData.headers.length > 0) {
           cacheSheet.getRange(1, 1, allRows.length, classData.headers.length)
             .setValues(allRows);
           savedCount++;
         }
+      } catch (classError) {
+        failedCount++;
+        const errorMsg = `Erreur pour ${className}: ${classError.message}`;
+        errors.push(errorMsg);
+        Logger.log(`⚠️ ${errorMsg}`);
       }
     }
 
     SpreadsheetApp.flush();
 
-    Logger.log(`💾 Sauvegarde réussie: ${savedCount} onglets CACHE créés/mis à jour`);
+    Logger.log(`💾 Sauvegarde terminée: ${savedCount} succès, ${failedCount} échecs`);
 
     return {
-      success: true,
+      success: failedCount === 0,
       saved: savedCount,
+      failed: failedCount,
+      errors: errors.length > 0 ? errors : undefined,
       timestamp: new Date().toISOString()
     };
 
   } catch (e) {
-    Logger.log(`❌ Erreur saveDispositionToSheets: ${e.toString()}`);
+    Logger.log(`❌ Erreur critique saveDispositionToSheets: ${e.message}`);
     return {
       success: false,
       error: e.toString()
@@ -580,15 +653,11 @@ function saveDispositionToSheets(disposition) {
  */
 function loadCacheData() {
   try {
-    const props = PropertiesService.getUserProperties();
-    const cacheData = props.getProperty('INTERFACEV2_CACHE');
-    
-    if (!cacheData) {
-      return { success: true, data: null };
-    }
-    
-    return { success: true, data: JSON.parse(cacheData) };
+    const data = safeGetUserProperty('INTERFACEV2_CACHE');
+
+    return { success: true, data };
   } catch (e) {
+    Logger.log(`❌ Erreur loadCacheData: ${e.message}`);
     return { success: false, error: e.toString() };
   }
 }
