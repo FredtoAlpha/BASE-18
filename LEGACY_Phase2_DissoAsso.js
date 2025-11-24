@@ -288,11 +288,18 @@ function findClassWithoutCodeD_LEGACY(allData, headers, codeD, indicesWithD, ele
   const eleveLV2 = eleveIdx >= 0 ? String(allData[eleveIdx].row[idxLV2] || '').trim().toUpperCase() : '';
   const eleveOPT = eleveIdx >= 0 ? String(allData[eleveIdx].row[idxOPT] || '').trim().toUpperCase() : '';
 
+  // ✅ BUG FIX: Scanner l'état ACTUEL de allData pour trouver les classes avec ce code DISSO
+  // (au lieu de se baser sur indicesWithD qui reflète l'état INITIAL avant les déplacements)
+  const idxDISSO = headers.indexOf('DISSO');
   const classesWithD = new Set();
-  indicesWithD.forEach(function(i) {
-    const cls = String(allData[i].row[idxAssigned] || '').trim();
-    if (cls) classesWithD.add(cls);
-  });
+  for (let i = 0; i < allData.length; i++) {
+    if (i === eleveIdx) continue; // Ne pas compter l'élève lui-même
+    const rowDisso = String(allData[i].row[idxDISSO] || '').trim().toUpperCase();
+    if (rowDisso === codeD) {
+      const cls = String(allData[i].row[idxAssigned] || '').trim();
+      if (cls) classesWithD.add(cls);
+    }
+  }
 
   const allClasses = new Set();
   for (let i = 0; i < allData.length; i++) {
