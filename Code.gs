@@ -2,7 +2,7 @@
  * ===================================================================
  * 🚀 BASE-17 ULTIMATE - POINT D'ENTRÉE PRINCIPAL
  * ===================================================================
- * Version : 3.6 (Phase 7 - Améliorations séquentielles)
+ * Version : 3.7 (Phase 8 - Gestion d'erreurs robuste)
  *
  * Ce fichier contient les fonctions principales pour l'application
  * de gestion de répartition des élèves. Il gère:
@@ -50,6 +50,65 @@ const SHEET_PATTERNS = {
   PREVIOUS: /PREVIOUS$/i,
   INT: /INT$/i
 };
+
+// ==================== UTILITAIRES ====================
+
+/**
+ * Parse JSON de manière sécurisée avec gestion d'erreurs
+ * @param {string} jsonString - Chaîne JSON à parser
+ * @param {*} defaultValue - Valeur par défaut en cas d'erreur (default: null)
+ * @returns {*} Objet parsé ou defaultValue
+ */
+function safeJSONParse(jsonString, defaultValue = null) {
+  if (!jsonString || typeof jsonString !== 'string') {
+    return defaultValue;
+  }
+
+  try {
+    return JSON.parse(jsonString);
+  } catch (e) {
+    Logger.log(`⚠️ Erreur JSON.parse: ${e.message} | Input: ${jsonString.substring(0, 100)}...`);
+    return defaultValue;
+  }
+}
+
+/**
+ * Récupère une propriété utilisateur de manière sécurisée
+ * @param {string} key - Clé de la propriété
+ * @param {*} defaultValue - Valeur par défaut
+ * @returns {*} Valeur parsée ou defaultValue
+ */
+function safeGetUserProperty(key, defaultValue = null) {
+  try {
+    const props = PropertiesService.getUserProperties();
+    const value = props.getProperty(key);
+
+    if (!value) return defaultValue;
+
+    return safeJSONParse(value, defaultValue);
+  } catch (e) {
+    Logger.log(`❌ Erreur safeGetUserProperty('${key}'): ${e.message}`);
+    return defaultValue;
+  }
+}
+
+/**
+ * Définit une propriété utilisateur de manière sécurisée
+ * @param {string} key - Clé de la propriété
+ * @param {*} value - Valeur à stocker (sera JSONifiée)
+ * @returns {boolean} true si succès, false sinon
+ */
+function safeSetUserProperty(key, value) {
+  try {
+    const props = PropertiesService.getUserProperties();
+    const jsonValue = JSON.stringify(value);
+    props.setProperty(key, jsonValue);
+    return true;
+  } catch (e) {
+    Logger.log(`❌ Erreur safeSetUserProperty('${key}'): ${e.message}`);
+    return false;
+  }
+}
 
 // ==================== MENU ET INITIALISATION ====================
 
@@ -612,14 +671,12 @@ function getClassesData(mode = 'source') {
  */
 function getLastCacheInfo() {
   try {
-    const props = PropertiesService.getUserProperties();
-    const cacheData = props.getProperty('INTERFACEV2_CACHE');
-    
-    if (!cacheData) {
+    const cache = safeGetUserProperty('INTERFACEV2_CACHE');
+
+    if (!cache) {
       return { success: true, exists: false };
     }
-    
-    const cache = JSON.parse(cacheData);
+
     return {
       success: true,
       exists: true,
@@ -627,6 +684,7 @@ function getLastCacheInfo() {
       mode: cache.mode || 'unknown'
     };
   } catch (e) {
+    Logger.log(`❌ Erreur getLastCacheInfo: ${e.message}`);
     return { success: false, error: e.toString() };
   }
 }
@@ -637,17 +695,18 @@ function getLastCacheInfo() {
  */
 function getBridgeContextAndClear() {
   try {
-    const props = PropertiesService.getUserProperties();
-    const context = props.getProperty('JULES_CONTEXT');
-    
+    const context = safeGetUserProperty('JULES_CONTEXT');
+
     if (!context) {
       return { success: true, context: null };
     }
-    
-    props.deleteProperty('JULES_CONTEXT');
-    
-    return { success: true, context: JSON.parse(context) };
+
+    // Effacer la propriété après lecture
+    PropertiesService.getUserProperties().deleteProperty('JULES_CONTEXT');
+
+    return { success: true, context };
   } catch (e) {
+    Logger.log(`❌ Erreur getBridgeContextAndClear: ${e.message}`);
     return { success: false, error: e.toString() };
   }
 }
@@ -658,34 +717,19 @@ function getBridgeContextAndClear() {
  * @returns {Object} {success: boolean}
  */
 function saveCacheData(cacheData) {
-  try {
-    const props = PropertiesService.getUserProperties();
-    const serialized = JSON.stringify(cacheData);
+  const success = safeSetUserProperty('INTERFACEV2_CACHE', cacheData);
 
-    // ✅ Vérification de la taille (limite: ~9KB par propriété)
-    const sizeKB = new Blob([serialized]).size / 1024;
-    if (sizeKB > 8) {
-      Logger.log(`⚠️ Cache data too large: ${sizeKB.toFixed(2)}KB (limit: 9KB)`);
-      return { success: false, error: 'Cache data exceeds size limit' };
-    }
-
-    props.setProperty('INTERFACEV2_CACHE', serialized);
-    return { success: true };
-  } catch (e) {
-    // ✅ Gestion spécifique des erreurs de quota
-    if (e.toString().includes('quota') || e.toString().includes('limit')) {
-      Logger.log('❌ PropertiesService quota exceeded: ' + e.toString());
-      return { success: false, error: 'Quota exceeded', quotaError: true };
-    }
-    return { success: false, error: e.toString() };
+  if (!success) {
+    return { success: false, error: 'Échec de la sauvegarde du cache' };
   }
+
+  return { success: true };
 }
 
 /**
  * Sauvegarde la disposition dans les onglets Google Sheets (création des onglets CACHE)
  * @param {Object} disposition - Objet {className: {headers: [], students: []}}
- * @param {Spreadsheet} ss - Instance du spreadsheet (optionnel)
- * @returns {Object} {success: boolean, saved: number, timestamp: string}
+ * @returns {Object} {success: boolean, saved: number, failed: number, errors: Array, timestamp: string}
  */
 function saveDispositionToSheets(disposition, ss = null) {
   try {
@@ -696,17 +740,16 @@ function saveDispositionToSheets(disposition, ss = null) {
 
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let savedCount = 0;
-    const errors = []; // ✅ Collecte des erreurs par classe
+    let failedCount = 0;
+    const errors = [];
 
     for (const className in disposition) {
       try {
         const classData = disposition[className];
 
-        // ✅ Validation des données de classe
-        if (!classData || typeof classData !== 'object') {
-          Logger.log(`⚠️ Données invalides pour ${className}, ignoré`);
-          errors.push({ className, error: 'Données invalides' });
-          continue;
+        // Validation des données de classe
+        if (!classData || !classData.headers || !classData.students) {
+          throw new Error(`Données invalides pour la classe ${className}`);
         }
 
         // Nom de l'onglet CACHE (ex: "5°1 TEST" -> "5°1 CACHE")
@@ -723,37 +766,34 @@ function saveDispositionToSheets(disposition, ss = null) {
         }
 
         // Écrire les données
-        if (classData.headers && classData.students) {
-          const allRows = [classData.headers, ...classData.students];
-          if (allRows.length > 0 && classData.headers.length > 0) {
-            cacheSheet.getRange(1, 1, allRows.length, classData.headers.length)
-              .setValues(allRows);
-            savedCount++;
-          }
+        const allRows = [classData.headers, ...classData.students];
+        if (allRows.length > 0 && classData.headers.length > 0) {
+          cacheSheet.getRange(1, 1, allRows.length, classData.headers.length)
+            .setValues(allRows);
+          savedCount++;
         }
       } catch (classError) {
-        // ✅ Continuer même si une classe échoue
-        Logger.log(`❌ Erreur pour ${className}: ${classError.toString()}`);
-        errors.push({ className, error: classError.toString() });
+        failedCount++;
+        const errorMsg = `Erreur pour ${className}: ${classError.message}`;
+        errors.push(errorMsg);
+        Logger.log(`⚠️ ${errorMsg}`);
       }
     }
 
     SpreadsheetApp.flush();
 
-    Logger.log(`💾 Sauvegarde: ${savedCount} onglets CACHE créés/mis à jour, ${errors.length} erreurs`);
+    Logger.log(`💾 Sauvegarde terminée: ${savedCount} succès, ${failedCount} échecs`);
 
     return {
-      success: savedCount > 0, // ✅ Succès partiel si au moins une classe est sauvegardée
+      success: failedCount === 0,
       saved: savedCount,
+      failed: failedCount,
       errors: errors.length > 0 ? errors : undefined,
       timestamp: new Date().toISOString()
     };
 
   } catch (e) {
-    // ✅ Gestion d'erreur globale améliorée
-    const errorMessage = 'Erreur critique lors de la sauvegarde des dispositions';
-    Logger.log(`❌ ${errorMessage}: ${e.toString()}`);
-    Logger.log(`Stack trace: ${e.stack || 'Non disponible'}`);
+    Logger.log(`❌ Erreur critique saveDispositionToSheets: ${e.message}`);
     return {
       success: false,
       error: errorMessage,
@@ -768,23 +808,11 @@ function saveDispositionToSheets(disposition, ss = null) {
  */
 function loadCacheData() {
   try {
-    const props = PropertiesService.getUserProperties();
-    const cacheData = props.getProperty('INTERFACEV2_CACHE');
+    const data = safeGetUserProperty('INTERFACEV2_CACHE');
 
-    if (!cacheData) {
-      return { success: true, data: null };
-    }
-
-    // ✅ Gestion des erreurs de parsing JSON
-    try {
-      return { success: true, data: JSON.parse(cacheData) };
-    } catch (parseError) {
-      Logger.log('⚠️ Cache data corrupted, clearing: ' + parseError.toString());
-      props.deleteProperty('INTERFACEV2_CACHE');
-      return { success: true, data: null };
-    }
+    return { success: true, data };
   } catch (e) {
-    Logger.log('❌ Error loading cache: ' + e.toString());
+    Logger.log(`❌ Erreur loadCacheData: ${e.message}`);
     return { success: false, error: e.toString() };
   }
 }
