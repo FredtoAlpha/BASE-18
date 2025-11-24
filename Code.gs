@@ -3,8 +3,20 @@
  * 🚀 BASE-17 ULTIMATE - POINT D'ENTRÉE PRINCIPAL
  * ===================================================================
  * Version : 3.5 (Finale & Nettoyée)
+ *
+ * Ce fichier contient les fonctions principales pour l'application
+ * de gestion de répartition des élèves. Il gère:
+ * - Le menu Google Sheets
+ * - L'accès web pour les professeurs
+ * - Les fonctions backend pour InterfaceV2
+ * - La gestion des données de classes
  */
 
+/**
+ * Fonction déclenchée automatiquement à l'ouverture du spreadsheet
+ * Crée le menu personnalisé "PILOTAGE CLASSE" avec tous les outils
+ * @see {@link https://developers.google.com/apps-script/guides/triggers#onopene|Google Apps Script onOpen trigger}
+ */
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🚀 PILOTAGE CLASSE')
@@ -25,7 +37,15 @@ function onOpen() {
   Logger.log('✅ Menu V3 Ultimate chargé');
 }
 
-// --- ACCÈS WEB (Interface Profs) ---
+// ==================== ACCÈS WEB (Interface Profs) ====================
+
+/**
+ * Point d'entrée pour l'application web (doGet trigger)
+ * Renvoie l'interface InterfaceV2 pour les professeurs
+ * @param {Object} e - Objet événement (paramètres GET)
+ * @returns {HtmlOutput} Page HTML de l'interface professeurs
+ * @see {@link https://developers.google.com/apps-script/guides/web|Google Apps Script Web Apps}
+ */
 function doGet(e) {
   return HtmlService.createTemplateFromFile('InterfaceV2')
     .evaluate()
@@ -48,38 +68,65 @@ function include(filename) {
   }
 }
 
-// --- LANCEURS MODALES ---
+// ==================== LANCEURS MODALES ====================
+
+/**
+ * Ouvre la Console de Pilotage V3 (interface principale)
+ * Appelé depuis le menu "PILOTAGE CLASSE"
+ */
 function ouvrirConsolePilotageV3() {
   const html = HtmlService.createHtmlOutputFromFile('ConsolePilotageV3')
     .setWidth(1600).setHeight(900);
   SpreadsheetApp.getUi().showModalDialog(html, 'Console de Pilotage V3 - Expert Edition');
 }
 
+/**
+ * Ouvre l'interface de configuration de la structure
+ * Permet de définir les effectifs et quotas par classe
+ */
 function ouvrirConfigurationStructure() {
   const html = HtmlService.createHtmlOutputFromFile('ConfigurationComplete')
     .setWidth(1200).setHeight(800);
   SpreadsheetApp.getUi().showModalDialog(html, 'Configuration de la Structure');
 }
 
+/**
+ * Ouvre l'interface de configuration complète
+ * Alias de ouvrirConfigurationStructure()
+ */
 function ouvrirConfigurationComplete() {
   const html = HtmlService.createHtmlOutputFromFile('ConfigurationComplete')
     .setWidth(1200).setHeight(800);
   SpreadsheetApp.getUi().showModalDialog(html, 'Configuration Complète');
 }
 
+/**
+ * Ouvre le module de création de groupes V4
+ * Permet de créer des groupes d'élèves selon différents critères
+ */
 function ouvrirModuleGroupes() {
   const html = HtmlService.createHtmlOutputFromFile('GroupsInterfaceV4')
     .setWidth(1400).setHeight(800);
   SpreadsheetApp.getUi().showModalDialog(html, 'Module Groupes');
 }
 
+/**
+ * Ouvre le module d'intégration d'un nouvel élève
+ * Permet d'ajouter un élève au système existant
+ */
 function ouvrirModuleNouvelEleve() {
   const html = HtmlService.createHtmlOutputFromFile('InterfaceV2_NewStudentModule')
     .setWidth(1000).setHeight(600);
   SpreadsheetApp.getUi().showModalDialog(html, 'Intégration Nouvel Élève');
 }
 
-// --- UTILITAIRES ADMIN & COMPATIBILITÉ ---
+// ==================== UTILITAIRES ADMIN & COMPATIBILITÉ ====================
+
+/**
+ * Déverrouille l'onglet _STRUCTURE en supprimant toutes les protections
+ * Fonction utilitaire pour l'administration, utilisée avec précaution
+ * @see Menu "PILOTAGE CLASSE" > "Déverrouiller _STRUCTURE"
+ */
 function deverrouillerStructure() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('_STRUCTURE');
@@ -91,6 +138,12 @@ function deverrouillerStructure() {
   }
 }
 
+/**
+ * Lance le pipeline complet (fonction legacy)
+ * Maintenue pour compatibilité avec les anciennes versions
+ * @deprecated Utiliser la Console de Pilotage V3 à la place
+ * @returns {*} Résultat du pipeline si la fonction existe
+ */
 function legacy_runFullPipeline() {
   if (typeof legacy_runFullPipeline_PRIME === 'function') {
     return legacy_runFullPipeline_PRIME();
@@ -98,9 +151,14 @@ function legacy_runFullPipeline() {
   SpreadsheetApp.getUi().alert("❌ Erreur : Moteur LEGACY introuvable.");
 }
 
+/**
+ * Affiche les classes sources (fonction legacy)
+ * Recherche les onglets avec le pattern "Classe°Numéro" (ex: "5°1")
+ * @deprecated Fonction de compatibilité
+ */
 function legacy_viewSourceClasses() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sourceSheets = ss.getSheets().filter(s => /.+°\d+$/.test(s.getName())); // ✅ Pattern universel
+  const sourceSheets = ss.getSheets().filter(s => /.+°\d+$/.test(s.getName())); // Pattern universel : Classe°N
   if (sourceSheets.length > 0) {
     ss.setActiveSheet(sourceSheets[0]);
     SpreadsheetApp.getUi().alert('Classes sources trouvées : ' + sourceSheets.map(s => s.getName()).join(', '));
@@ -109,6 +167,10 @@ function legacy_viewSourceClasses() {
   }
 }
 
+/**
+ * Ouvre l'onglet _STRUCTURE (fonction legacy)
+ * @deprecated Fonction de compatibilité
+ */
 function legacy_openStructure() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('_STRUCTURE');
