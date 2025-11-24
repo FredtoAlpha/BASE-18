@@ -2,7 +2,7 @@
  * ===================================================================
  * 🚀 BASE-17 ULTIMATE - POINT D'ENTRÉE PRINCIPAL
  * ===================================================================
- * Version : 3.7 (Phase 8 - Gestion d'erreurs robuste)
+ * Version : 3.8 (Phase 9 - Optimisation performances)
  *
  * Ce fichier contient les fonctions principales pour l'application
  * de gestion de répartition des élèves. Il gère:
@@ -52,6 +52,32 @@ const SHEET_PATTERNS = {
 };
 
 // ==================== UTILITAIRES ====================
+
+/**
+ * Cache pour le Spreadsheet actif (optimisation performance)
+ * @private
+ */
+let _cachedSpreadsheet = null;
+
+/**
+ * Récupère le Spreadsheet actif avec caching
+ * Optimisation : évite les appels répétés à getActiveSpreadsheet()
+ * @returns {Spreadsheet} Spreadsheet actif
+ */
+function getActiveSpreadsheetCached() {
+  if (!_cachedSpreadsheet) {
+    _cachedSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  }
+  return _cachedSpreadsheet;
+}
+
+/**
+ * Réinitialise le cache du Spreadsheet
+ * Utile si le spreadsheet change durant l'exécution
+ */
+function clearSpreadsheetCache() {
+  _cachedSpreadsheet = null;
+}
 
 /**
  * Parse JSON de manière sécurisée avec gestion d'erreurs
@@ -228,7 +254,7 @@ function ouvrirModuleNouvelEleve() {
  * @see Menu "PILOTAGE CLASSE" > "Déverrouiller _STRUCTURE"
  */
 function deverrouillerStructure() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getActiveSpreadsheetCached();
   const sheet = ss.getSheetByName('_STRUCTURE');
   if (sheet) {
     sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(p => p.remove());
@@ -257,7 +283,7 @@ function legacy_runFullPipeline() {
  * @deprecated Fonction de compatibilité
  */
 function legacy_viewSourceClasses() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getActiveSpreadsheetCached();
   const sourceSheets = ss.getSheets().filter(s => /.+°\d+$/.test(s.getName())); // Pattern universel : Classe°N
   if (sourceSheets.length > 0) {
     ss.setActiveSheet(sourceSheets[0]);
@@ -272,7 +298,7 @@ function legacy_viewSourceClasses() {
  * @deprecated Fonction de compatibilité
  */
 function legacy_openStructure() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getActiveSpreadsheetCached();
   const sheet = ss.getSheetByName('_STRUCTURE');
   if (sheet) ss.setActiveSheet(sheet);
 }
@@ -307,7 +333,7 @@ function resolveSheetFilter(mode) {
  * @returns {Object} Données brutes par classe
  */
 function collectClassesDataByMode(mode) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getActiveSpreadsheetCached();
   const filter = resolveSheetFilter(mode);
   const sheets = ss.getSheets().filter(s => filter.test(s.getName()));
   const classesData = {};
@@ -415,7 +441,7 @@ function findStructureHeaderInfo(data) {
  * @returns {Object} Règles par classe {capacity, quotas}
  */
 function loadStructureRules() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = getActiveSpreadsheetCached();
   const sheet = ss.getSheetByName('_STRUCTURE');
   if (!sheet) return {};
 
@@ -584,7 +610,7 @@ function saveDispositionToSheets(disposition) {
       return { success: false, error: 'Paramètre disposition invalide ou vide' };
     }
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetCached();
     let savedCount = 0;
     let failedCount = 0;
     const errors = [];
@@ -670,7 +696,7 @@ function loadCacheData() {
  */
 function saveElevesSnapshot(disposition, mode) {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetCached();
     
     for (const [className, classData] of Object.entries(disposition)) {
       const sheet = ss.getSheetByName(className);
@@ -714,7 +740,7 @@ function getUiSettings() {
  */
 function getAdminPasswordFromConfig() {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetCached();
     const configSheet = ss.getSheetByName('_CONFIG');
 
     if (!configSheet) {
@@ -763,7 +789,7 @@ function verifierMotDePasseAdmin(password) {
  */
 function loadFINSheetsWithScores() {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetCached();
     const finSheets = ss.getSheets().filter(s => SHEET_PATTERNS.FIN.test(s.getName()));
 
     if (finSheets.length === 0) {
@@ -815,7 +841,7 @@ function updateStructureRules(newRules) {
       return { success: false, error: 'Paramètre newRules invalide ou vide' };
     }
 
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetCached();
     const sheet = ss.getSheetByName('_STRUCTURE');
 
     if (!sheet) {
@@ -868,7 +894,7 @@ function updateStructureRules(newRules) {
  */
 function getINTScores() {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getActiveSpreadsheetCached();
     const intSheets = ss.getSheets().filter(s => SHEET_PATTERNS.INT.test(s.getName()));
 
     if (intSheets.length === 0) {
