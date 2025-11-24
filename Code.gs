@@ -2,7 +2,7 @@
  * ===================================================================
  * 🚀 BASE-17 ULTIMATE - POINT D'ENTRÉE PRINCIPAL
  * ===================================================================
- * Version : 3.5 (Finale & Nettoyée)
+ * Version : 3.6 (Phase 7 - Améliorations séquentielles)
  *
  * Ce fichier contient les fonctions principales pour l'application
  * de gestion de répartition des élèves. Il gère:
@@ -11,6 +11,47 @@
  * - Les fonctions backend pour InterfaceV2
  * - La gestion des données de classes
  */
+
+// ==================== CONSTANTES ====================
+
+/**
+ * Configuration des noms de colonnes dans _STRUCTURE
+ */
+const STRUCTURE_COLUMNS = {
+  CLASSE: ['CLASSE_DEST', 'CLASSE', 'DESTINATION'],
+  EFFECTIF: 'EFFECTIF',
+  OPTIONS: 'OPTIONS'
+};
+
+/**
+ * Configuration des index de colonnes pour les scores dans les onglets FIN
+ */
+const SCORE_COLUMNS = {
+  SCORE_F: 20,  // Colonne U (index 0-based)
+  SCORE_M: 21   // Colonne V (index 0-based)
+};
+
+/**
+ * Valeurs par défaut
+ */
+const DEFAULTS = {
+  CLASS_CAPACITY: 25,
+  MAX_HEADER_SEARCH_ROWS: 10
+};
+
+/**
+ * Patterns regex pour les types d'onglets
+ */
+const SHEET_PATTERNS = {
+  SOURCE: /.+°\d+$/,      // Termine par °chiffre (ex: 5°1)
+  FIN: /FIN$/i,
+  TEST: /TEST$/i,
+  CACHE: /CACHE$/i,
+  PREVIOUS: /PREVIOUS$/i,
+  INT: /INT$/i
+};
+
+// ==================== MENU ET INITIALISATION ====================
 
 /**
  * Fonction déclenchée automatiquement à l'ouverture du spreadsheet
@@ -189,15 +230,15 @@ function resolveSheetFilter(mode) {
 
   switch (normalized) {
     case 'FIN':
-      return /FIN$/;
+      return SHEET_PATTERNS.FIN;
     case 'TEST':
-      return /TEST$/;
+      return SHEET_PATTERNS.TEST;
     case 'CACHE':
-      return /CACHE$/;
+      return SHEET_PATTERNS.CACHE;
     case 'PREVIOUS':
-      return /PREVIOUS$/;
+      return SHEET_PATTERNS.PREVIOUS;
     default:
-      return /.+°\d+$/; // Sources : termine par °chiffre
+      return SHEET_PATTERNS.SOURCE;
   }
 }
 
@@ -235,9 +276,16 @@ function collectClassesDataByMode(mode) {
  * @returns {Array} Élèves mappés
  */
 function mapStudentsForInterface(headers, rows) {
+  // Liste des champs standards à normaliser (mapping majuscules -> minuscules)
+  const FIELD_MAPPINGS = [
+    'NOM', 'PRENOM', 'SEXE', 'LV2', 'OPT',
+    'ASSO', 'DISSO', 'DISPO', 'MOBILITE', 'SOURCE'
+  ];
+
   return rows.map(row => {
     const eleve = {};
 
+    // Mapper toutes les colonnes
     headers.forEach((header, idx) => {
       if (!header) return;
       eleve[header] = row[idx];
@@ -246,6 +294,7 @@ function mapStudentsForInterface(headers, rows) {
       }
     });
 
+    // ID par défaut (première colonne)
     if (!eleve.id) {
       eleve.id = String(row[0] || '').trim();
     }
@@ -258,17 +307,10 @@ function mapStudentsForInterface(headers, rows) {
       ABS: eleve.ABS || 0
     };
 
-    // Normaliser les champs pour compatibilité frontend
-    eleve.nom = eleve.NOM || '';
-    eleve.prenom = eleve.PRENOM || '';
-    eleve.sexe = eleve.SEXE || '';
-    eleve.lv2 = eleve.LV2 || '';
-    eleve.opt = eleve.OPT || '';
-    eleve.asso = eleve.ASSO || '';
-    eleve.disso = eleve.DISSO || '';
-    eleve.dispo = eleve.DISPO || '';
-    eleve.mobilite = eleve.MOBILITE || '';
-    eleve.source = eleve.SOURCE || '';
+    // Normaliser les champs en minuscules pour compatibilité frontend
+    FIELD_MAPPINGS.forEach(field => {
+      eleve[field.toLowerCase()] = eleve[field] || '';
+    });
 
     return eleve;
   }).filter(eleve => eleve.id);
@@ -284,6 +326,32 @@ function normalizeClasseName(sheetName) {
 }
 
 /**
+ * Trouve la ligne d'en-tête et les index de colonnes dans _STRUCTURE
+ * @param {Array} data - Données de l'onglet _STRUCTURE
+ * @returns {Object|null} {headerRow, headers, destIdx, effectifIdx, optionsIdx} ou null si non trouvé
+ */
+function findStructureHeaderInfo(data) {
+  if (!data || !data.length) return null;
+
+  // Trouver la ligne d'en-tête
+  let headerRow = 0;
+  for (let i = 0; i < Math.min(data.length, DEFAULTS.MAX_HEADER_SEARCH_ROWS); i++) {
+    const row = data[i].map(v => String(v || '').toUpperCase());
+    if (STRUCTURE_COLUMNS.CLASSE.some(col => row.includes(col))) {
+      headerRow = i;
+      break;
+    }
+  }
+
+  const headers = data[headerRow].map(h => String(h || ''));
+  const destIdx = headers.findIndex(h => STRUCTURE_COLUMNS.CLASSE.includes(h.toUpperCase()));
+  const effectifIdx = headers.findIndex(h => h.toUpperCase() === STRUCTURE_COLUMNS.EFFECTIF);
+  const optionsIdx = headers.findIndex(h => h.toUpperCase() === STRUCTURE_COLUMNS.OPTIONS);
+
+  return { headerRow, headers, destIdx, effectifIdx, optionsIdx };
+}
+
+/**
  * Charge les règles de structure (_STRUCTURE)
  * @returns {Object} Règles par classe {capacity, quotas}
  */
@@ -293,33 +361,19 @@ function loadStructureRules() {
   if (!sheet) return {};
 
   const data = sheet.getDataRange().getValues();
-  if (!data.length) return {};
+  const headerInfo = findStructureHeaderInfo(data);
 
-  let headerRow = 0;
-  for (let i = 0; i < Math.min(data.length, 10); i++) {
-    const row = data[i].map(v => String(v || '').toUpperCase());
-    if (row.includes('CLASSE_DEST') || row.includes('CLASSE') || row.includes('DESTINATION')) {
-      headerRow = i;
-      break;
-    }
-  }
+  if (!headerInfo || headerInfo.destIdx === -1) return {};
 
-  const headers = data[headerRow].map(h => String(h || ''));
-  const destIdx = headers.findIndex(h => ['CLASSE_DEST', 'CLASSE', 'DESTINATION'].includes(h.toUpperCase()));
-  const effectifIdx = headers.findIndex(h => h.toUpperCase() === 'EFFECTIF');
-  const optionsIdx = headers.findIndex(h => h.toUpperCase() === 'OPTIONS');
-
-  if (destIdx === -1 && effectifIdx === -1 && optionsIdx === -1) {
-    return {};
-  }
-
+  const { headerRow, destIdx, effectifIdx, optionsIdx } = headerInfo;
   const rules = {};
+
   for (let i = headerRow + 1; i < data.length; i++) {
     const row = data[i];
-    const classe = destIdx === -1 ? '' : String(row[destIdx] || '').trim();
+    const classe = String(row[destIdx] || '').trim();
     if (!classe) continue;
 
-    const capacity = effectifIdx === -1 ? 25 : Number(row[effectifIdx]) || 25;
+    const capacity = effectifIdx === -1 ? DEFAULTS.CLASS_CAPACITY : Number(row[effectifIdx]) || DEFAULTS.CLASS_CAPACITY;
     const quotas = {};
 
     if (optionsIdx !== -1 && row[optionsIdx]) {
@@ -466,6 +520,11 @@ function saveCacheData(cacheData) {
  */
 function saveDispositionToSheets(disposition) {
   try {
+    // Validation des paramètres
+    if (!disposition || typeof disposition !== 'object' || Object.keys(disposition).length === 0) {
+      return { success: false, error: 'Paramètre disposition invalide ou vide' };
+    }
+
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let savedCount = 0;
 
@@ -609,13 +668,18 @@ function getAdminPasswordFromConfig() {
  */
 function verifierMotDePasseAdmin(password) {
   try {
+    // Validation des paramètres
+    if (password === undefined || password === null) {
+      return { success: false, error: 'Mot de passe non fourni' };
+    }
+
     const adminPassword = getAdminPasswordFromConfig();
 
     if (!adminPassword) {
-      return { success: false, error: 'Mot de passe admin non configuré' };
+      return { success: false, error: 'Mot de passe admin non configuré dans _CONFIG' };
     }
 
-    const isValid = String(password || '').trim() === adminPassword;
+    const isValid = String(password).trim() === adminPassword;
 
     return { success: isValid };
   } catch (e) {
@@ -631,7 +695,7 @@ function verifierMotDePasseAdmin(password) {
 function loadFINSheetsWithScores() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const finSheets = ss.getSheets().filter(s => /FIN$/i.test(s.getName()));
+    const finSheets = ss.getSheets().filter(s => SHEET_PATTERNS.FIN.test(s.getName()));
 
     if (finSheets.length === 0) {
       return { success: false, error: 'Aucun onglet FIN trouvé' };
@@ -644,8 +708,6 @@ function loadFINSheetsWithScores() {
       if (sheetData.length < 2) return;
 
       const headers = sheetData[0];
-      const scoreF_idx = 20; // Colonne U (index 20)
-      const scoreM_idx = 21; // Colonne V (index 21)
 
       const eleves = sheetData.slice(1)
         .filter(row => row[0] && String(row[0]).trim() !== '')
@@ -655,9 +717,9 @@ function loadFINSheetsWithScores() {
             if (header) eleve[header] = row[idx];
           });
 
-          // Ajouter les scores spécifiques
-          eleve.SCORE_F = row[scoreF_idx] || 0;
-          eleve.SCORE_M = row[scoreM_idx] || 0;
+          // Ajouter les scores spécifiques depuis les constantes
+          eleve.SCORE_F = row[SCORE_COLUMNS.SCORE_F] || 0;
+          eleve.SCORE_M = row[SCORE_COLUMNS.SCORE_M] || 0;
 
           return eleve;
         });
@@ -679,6 +741,11 @@ function loadFINSheetsWithScores() {
  */
 function updateStructureRules(newRules) {
   try {
+    // Validation des paramètres
+    if (!newRules || typeof newRules !== 'object' || Object.keys(newRules).length === 0) {
+      return { success: false, error: 'Paramètre newRules invalide ou vide' };
+    }
+
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName('_STRUCTURE');
 
@@ -687,28 +754,13 @@ function updateStructureRules(newRules) {
     }
 
     const data = sheet.getDataRange().getValues();
-    if (!data.length) {
-      return { success: false, error: 'Onglet _STRUCTURE vide' };
+    const headerInfo = findStructureHeaderInfo(data);
+
+    if (!headerInfo || headerInfo.destIdx === -1) {
+      return { success: false, error: 'Colonne CLASSE_DEST introuvable dans _STRUCTURE' };
     }
 
-    // Trouver la ligne d'en-tête
-    let headerRow = 0;
-    for (let i = 0; i < Math.min(data.length, 10); i++) {
-      const row = data[i].map(v => String(v || '').toUpperCase());
-      if (row.includes('CLASSE_DEST') || row.includes('CLASSE') || row.includes('DESTINATION')) {
-        headerRow = i;
-        break;
-      }
-    }
-
-    const headers = data[headerRow].map(h => String(h || ''));
-    const destIdx = headers.findIndex(h => ['CLASSE_DEST', 'CLASSE', 'DESTINATION'].includes(h.toUpperCase()));
-    const effectifIdx = headers.findIndex(h => h.toUpperCase() === 'EFFECTIF');
-    const optionsIdx = headers.findIndex(h => h.toUpperCase() === 'OPTIONS');
-
-    if (destIdx === -1) {
-      return { success: false, error: 'Colonne CLASSE_DEST introuvable' };
-    }
+    const { headerRow, destIdx, effectifIdx, optionsIdx } = headerInfo;
 
     // Mettre à jour les règles
     for (let i = headerRow + 1; i < data.length; i++) {
@@ -748,7 +800,7 @@ function updateStructureRules(newRules) {
 function getINTScores() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const intSheets = ss.getSheets().filter(s => /INT$/i.test(s.getName()));
+    const intSheets = ss.getSheets().filter(s => SHEET_PATTERNS.INT.test(s.getName()));
 
     if (intSheets.length === 0) {
       return { success: false, error: 'Aucun onglet INT trouvé' };
