@@ -277,19 +277,6 @@ function deverrouillerStructure() {
 }
 
 /**
- * Lance le pipeline complet (fonction legacy)
- * Maintenue pour compatibilité avec les anciennes versions
- * @deprecated Utiliser la Console de Pilotage V3 à la place
- * @returns {*} Résultat du pipeline si la fonction existe
- */
-function legacy_runFullPipeline() {
-  if (typeof legacy_runFullPipeline_PRIME === 'function') {
-    return legacy_runFullPipeline_PRIME();
-  }
-  SpreadsheetApp.getUi().alert("❌ Erreur : Moteur LEGACY introuvable.");
-}
-
-/**
  * Affiche les classes sources (fonction legacy)
  * Recherche les onglets avec le pattern "Classe°Numéro" (ex: "5°1")
  * @deprecated Fonction de compatibilité
