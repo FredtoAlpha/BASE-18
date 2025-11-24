@@ -4583,14 +4583,16 @@ function initCharts() {
       console.log('📊 updateCharts appelée avec scoreType:', scoreType);
       if (!scoreType) scoreType = currentScoreType;
       console.log('📊 ScoreType final:', scoreType);
-    
+
     // Collecter les données par classe
     const dataByClass = {};
     const classes = [];
     const lv2Count = {};
     const optionCount = {};
-    
-    document.querySelectorAll('.class-column').forEach(column => {
+
+    // ⚡ OPTIMISATION Phase 11: Utiliser cache DOM au lieu de querySelector répétés
+    const classColumns = window.DOM ? window.DOM.getAll('.class-column', true) : document.querySelectorAll('.class-column');
+    classColumns.forEach(column => {
       const classe = column.querySelector('.classe-name').textContent;
       classes.push(classe);
       
@@ -4729,8 +4731,9 @@ function initCharts() {
         <li>Absences : ${scoreCounts.ABS > 0 ? (globalScores.ABS / scoreCounts.ABS).toFixed(2) : 'N/A'}</li>
       </ul>
     `;
-    
-    const globalStatsElement = document.getElementById('globalStats');
+
+    // ⚡ OPTIMISATION Phase 11: Utiliser cache DOM
+    const globalStatsElement = window.DOM ? window.DOM.get('#globalStats') : document.getElementById('globalStats');
     if (globalStatsElement) {
       globalStatsElement.innerHTML = globalStatsHtml;
     }
