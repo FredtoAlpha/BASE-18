@@ -41,7 +41,7 @@ const tick = (ms = 80) => new Promise(r => setTimeout(r, ms));
  * Met à jour le statut dans l'UI
  */
 function setStreamingStatus(msg, phase = '') {
-  console.log(msg);
+  LoggerClient.debug(msg);
   
   const statusEl = document.getElementById('live-status');
   if (statusEl) statusEl.textContent = msg;
@@ -135,7 +135,7 @@ const OptimizationPanel = {
     if (typeof STATE !== 'undefined' && STATE && STATE.rules && typeof STATE.rules === 'object') {
       const classNames = Object.keys(STATE.rules);
       if (classNames.length > 0) {
-        console.log('🔍 Classes from STATE.rules:', classNames);
+        LoggerClient.debug('🔍 Classes from STATE.rules:', classNames);
         return classNames.sort();
       }
     }
@@ -189,19 +189,19 @@ const OptimizationPanel = {
     // ⚠️ Si l'optimisation est en attente d'application
     // Relancer l'auto-save après 30 secondes (l'utilisateur peut être parti)
     if (this.optimizationPendingApplication) {
-      console.log('⏸️ Auto-save reste suspendu (optimisation en attente d\'application)');
-      console.log('   → Relance automatique dans 30 secondes si aucune action');
+      LoggerClient.debug('⏸️ Auto-save reste suspendu (optimisation en attente d\'application)');
+      LoggerClient.debug('   → Relance automatique dans 30 secondes si aucune action');
       
       setTimeout(function() {
         if (OptimizationPanel.optimizationPendingApplication) {
           OptimizationPanel.optimizationPendingApplication = false;
-          console.log('⏰ 30 secondes écoulées sans action, relance de l\'auto-save...');
+          LoggerClient.warn('⏰ 30 secondes écoulées sans action, relance de l\'auto-save...');
           if (typeof startAutoSave === 'function') {
             startAutoSave();
-            console.log('✅ Auto-save relancé automatiquement');
+            LoggerClient.info('✅ Auto-save relancé automatiquement');
           } else if (typeof startCacheAutoSave === 'function') {
             startCacheAutoSave();
-            console.log('✅ Cache auto-save relancé automatiquement');
+            LoggerClient.info('✅ Cache auto-save relancé automatiquement');
           }
         }
       }, 30000); // 30 secondes
@@ -788,7 +788,7 @@ const OptimizationPanel = {
         // ✅ NOUVEAU : Calculer automatiquement la répartition cible
         this.calculateTargetDistribution();
 
-        console.log('✅ Configuration chargée depuis _OPTI_CONFIG:', c);
+        LoggerClient.info('✅ Configuration chargée depuis _OPTI_CONFIG:', c);
       }
       
       this.hideLoading();
@@ -1002,10 +1002,10 @@ const OptimizationPanel = {
     const optSet = new Set();
 
     // DEBUG: Log structure of STATE.students
-    console.log('🔍 STATE.students structure:', Object.keys(students).length, 'keys');
+    LoggerClient.debug('🔍 STATE.students structure:', Object.keys(students).length, 'keys');
     const firstKey = Object.keys(students)[0];
-    console.log('🔍 First key:', firstKey);
-    console.log('🔍 First student sample:', students[firstKey]);
+    LoggerClient.debug('🔍 First key:', firstKey);
+    LoggerClient.debug('🔍 First student sample:', students[firstKey]);
 
     // Improved flatten to detect if students are already flat (id-based dictionary)
     const flatten = (entry) => {
@@ -1022,23 +1022,23 @@ const OptimizationPanel = {
         );
 
         if (looksLikeStudents) {
-          console.log('🔍 Detected flat student dictionary');
+          LoggerClient.debug('🔍 Detected flat student dictionary');
           return values;
         }
 
         // Otherwise, recursively flatten (for class-based structure)
-        console.log('🔍 Detected nested structure, flattening recursively');
+        LoggerClient.debug('🔍 Detected nested structure, flattening recursively');
         return values.flatMap(flatten);
       }
       return [];
     };
 
     const allStudents = flatten(students);
-    console.log('🔍 Total students after flatten:', allStudents.length);
+    LoggerClient.debug('🔍 Total students after flatten:', allStudents.length);
 
     // DEBUG: Sample first 3 students
     if (allStudents.length > 0) {
-      console.log('🔍 Sample students:', allStudents.slice(0, 3).map(s => ({
+      LoggerClient.debug(console.log('🔍 Sample students:', allStudents.slice(0, 3).map(s => ({)
         id: s?.id,
         lv2: s?.lv2,
         opt: s?.opt,
@@ -1062,13 +1062,13 @@ const OptimizationPanel = {
         const lv2Upper = lv2.toUpperCase();
         lv2Set.add(lv2Upper);
         lv2Counts[lv2Upper] = (lv2Counts[lv2Upper] || 0) + 1;
-        console.log('✅ Found LV2:', lv2);
+        LoggerClient.info('✅ Found LV2:', lv2);
       }
       if (opt) {
         const optUpper = opt.toUpperCase();
         optSet.add(optUpper);
         optCounts[optUpper] = (optCounts[optUpper] || 0) + 1;
-        console.log('✅ Found OPT:', opt);
+        LoggerClient.info('✅ Found OPT:', opt);
       }
     });
 
@@ -1080,7 +1080,7 @@ const OptimizationPanel = {
     this.lv2Counts = lv2Counts;
     this.optCounts = optCounts;
 
-    console.log('📊 Final detection results:', {
+    LoggerClient.info(console.log('📊 Final detection results:', {)
       LV2: this.detectedLV2,
       OPT: this.detectedOPT,
       total: this.detectedOptions.length
@@ -1195,7 +1195,7 @@ const OptimizationPanel = {
       this.targetsByClass[item.name] = item.target;
     });
 
-    console.log('🎯 Répartition cible calculée:', this.targetsByClass);
+    LoggerClient.info('🎯 Répartition cible calculée:', this.targetsByClass);
 
     // Afficher dans l'UI
     const targetsList = document.getElementById('targetsList');
@@ -1261,7 +1261,7 @@ const OptimizationPanel = {
     const classes = this.getClassNamesFromState();
     const nbClasses = classes.length;
 
-    console.log('📊 Distribution automatique:', { optionCounts, classes });
+    LoggerClient.info('📊 Distribution automatique:', { optionCounts, classes });
 
     // Initialiser la configuration
     if (!this.classOptionsConfig) {
@@ -1290,7 +1290,7 @@ const OptimizationPanel = {
         }
       }
 
-      console.log(`  ✅ ${option}: ${assigned}/${total} répartis (${avg}±1 par classe)`);
+      LoggerClient.info(`  ✅ ${option}: ${assigned}/${total} répartis (${avg}±1 par classe)`);
     });
 
     // Recréer le tableau avec les nouveaux quotas
@@ -1300,7 +1300,7 @@ const OptimizationPanel = {
       toast(`✅ Distribution automatique effectuée pour ${Object.keys(optionCounts).length} options`, 'success');
     }
 
-    console.log('📊 Configuration finale:', this.classOptionsConfig);
+    LoggerClient.info('📊 Configuration finale:', this.classOptionsConfig);
   },
   
   /**
@@ -1418,7 +1418,7 @@ const OptimizationPanel = {
       delete this.classOptionsConfig[clsName][option];
     }
 
-    console.log(`✅ Quota défini: ${clsName} → ${option} = ${quota}`);
+    LoggerClient.info(`✅ Quota défini: ${clsName} → ${option} = ${quota}`);
   },
 
   toggleClassOptionCat(clsName, cat, option, isChecked) {
@@ -1511,7 +1511,7 @@ const OptimizationPanel = {
       return false;
     }
 
-    console.log('✅ Quotas validés:', quotaSums);
+    LoggerClient.info('✅ Quotas validés:', quotaSums);
 
     if (typeof toast === 'function') {
       toast('✅ Configuration des quotas validée', 'success');
@@ -1568,16 +1568,16 @@ const OptimizationPanel = {
     const startTime = Date.now();
     
     // ✅ CORRECTION CRITIQUE : Suspendre l'auto-save pendant l'optimisation
-    console.log('⏸️ Suspension de l\'auto-save pendant l\'optimisation...');
+    LoggerClient.debug('⏸️ Suspension de l\'auto-save pendant l\'optimisation...');
     let autoSaveWasStopped = false;
     if (typeof stopAutoSave === 'function') {
       stopAutoSave();
       autoSaveWasStopped = true;
-      console.log('✅ Auto-save suspendu');
+      LoggerClient.info('✅ Auto-save suspendu');
     } else if (typeof stopCacheAutoSave === 'function') {
       stopCacheAutoSave();
       autoSaveWasStopped = true;
-      console.log('✅ Cache auto-save suspendu');
+      LoggerClient.info('✅ Cache auto-save suspendu');
     } else {
       console.warn('⚠️ Aucune fonction d\'arrêt auto-save trouvée');
     }
@@ -1588,7 +1588,7 @@ const OptimizationPanel = {
       if (btn) btn.disabled = true;
       
       // ===== ÉTAPE CRITIQUE : SYNCHRONISATION _STRUCTURE + _OPTI_CONFIG =====
-      console.log('🔄 Synchronisation de la configuration...');
+      LoggerClient.debug('🔄 Synchronisation de la configuration...');
       setStreamingStatus('🔄 Synchronisation de la configuration...', 'Préparation...');
       
       const config = {
@@ -1608,7 +1608,7 @@ const OptimizationPanel = {
         quotas: this.classOptionsConfig || {}
       };
 
-      console.log('📊 Configuration à synchroniser:', {
+      LoggerClient.info(console.log('📊 Configuration à synchroniser:', {)
         targets: config.targets,
         quotas: config.quotas,
         nbQuotas: Object.keys(config.quotas).length,
@@ -1616,7 +1616,7 @@ const OptimizationPanel = {
       });
       
       // ===== 1. ÉCRIRE DANS _STRUCTURE (SOURCE DE VÉRITÉ UNIQUE) =====
-      console.log('📝 Écriture dans _STRUCTURE (référence)...');
+      LoggerClient.info('📝 Écriture dans _STRUCTURE (référence)...');
       setStreamingStatus('📝 Mise à jour de _STRUCTURE...', 'Synchronisation...');
       
       // ✅ CORRECTION CRITIQUE : Convertir le format des quotas
@@ -1638,7 +1638,7 @@ const OptimizationPanel = {
         });
       });
       
-      console.log('📊 Format converti pour setStructureOptionsFromUI:', optionsByClass);
+      LoggerClient.info('📊 Format converti pour setStructureOptionsFromUI:', optionsByClass);
       
       const structureWriteResult = await gs('setStructureOptionsFromUI', optionsByClass);
       if (!structureWriteResult.success) {
@@ -1646,10 +1646,10 @@ const OptimizationPanel = {
         console.error(errorMsg);
         throw new Error(errorMsg);
       }
-      console.log('✅ _STRUCTURE mise à jour:', structureWriteResult.message);
+      LoggerClient.info('✅ _STRUCTURE mise à jour:', structureWriteResult.message);
       
       // ===== 2. ÉCRIRE DANS _OPTI_CONFIG (HISTORIQUE/BACKUP) =====
-      console.log('💾 Sauvegarde dans _OPTI_CONFIG (historique)...');
+      LoggerClient.debug('💾 Sauvegarde dans _OPTI_CONFIG (historique)...');
       setStreamingStatus('💾 Sauvegarde dans _OPTI_CONFIG...', 'Synchronisation...');
       
       const optiSaveResult = await gs('saveOptiConfigFromUI', config);
@@ -1657,18 +1657,18 @@ const OptimizationPanel = {
         // Non bloquant, mais on log l'erreur
         console.warn('⚠️ Échec de la sauvegarde dans _OPTI_CONFIG (non bloquant):', optiSaveResult.error);
       } else {
-        console.log('✅ _OPTI_CONFIG sauvegardé');
+        LoggerClient.info('✅ _OPTI_CONFIG sauvegardé');
       }
       
       // ===== 3. CONFIRMATION =====
-      console.log('✅ Synchronisation terminée : _STRUCTURE et _OPTI_CONFIG sont alignés');
+      LoggerClient.info('✅ Synchronisation terminée : _STRUCTURE et _OPTI_CONFIG sont alignés');
       setStreamingStatus('✅ Configuration synchronisée', 'Prêt...');
       
       // Récupérer le mode depuis l'UI
       const mode = config.mode;
       const opts = { mode };
       
-      console.log('🎬 Démarrage optimisation streaming, mode:', mode);
+      LoggerClient.debug('🎬 Démarrage optimisation streaming, mode:', mode);
       setStreamingStatus('🎬 Démarrage optimisation...', 'Initialisation...');
       
       // Nettoyer les logs précédents
@@ -1684,7 +1684,7 @@ const OptimizationPanel = {
       // ===== ÉTAPE 0: Ouvrir/vider/activer les onglets CACHE =====
       setStreamingStatus('📂 Ouverture des onglets CACHE…', 'Préparation...');
       const openInfo = await gs('openCacheTabsStream');  // SANS paramètres
-      console.log('✅ CACHE open:', openInfo);
+      LoggerClient.info('✅ CACHE open:', openInfo);
       if (!openInfo.ok) throw new Error(openInfo.error || 'Erreur ouverture CACHE');
       
       // Récupérer les niveaux depuis openInfo
@@ -1698,10 +1698,10 @@ const OptimizationPanel = {
       // ===== ÉTAPE 1: Phase 1 - Options & LV2 =====
       setStreamingStatus('📌 Phase 1/4 — Options & LV2…', 'Phase 1/4...');
       const p1 = await gs('phase1Stream');  // SANS paramètres
-      console.log('✅ Phase 1:', p1);
+      LoggerClient.info('✅ Phase 1:', p1);
       if (!p1.ok) throw new Error(p1.error || 'Erreur Phase 1');
       if (p1.counts) {
-        console.log('  📊 Compteurs:', p1.counts);
+        LoggerClient.info('  📊 Compteurs:', p1.counts);
         setStreamingStatus(`✅ Phase 1: ITA=${p1.counts.ITA || 0}, CHAV=${p1.counts.CHAV || 0}`, 'Phase 1/4...');
       }
       await tick(200);
@@ -1710,7 +1710,7 @@ const OptimizationPanel = {
       // ===== ÉTAPE 2: Phase 2 - DISSO/ASSO =====
       setStreamingStatus('📌 Phase 2/4 — Codes DISSO/ASSO…', 'Phase 2/4...');
       const p2 = await gs('phase2Stream');  // SANS paramètres
-      console.log('✅ Phase 2:', p2);
+      LoggerClient.info('✅ Phase 2:', p2);
       if (!p2.ok) throw new Error(p2.error || 'Erreur Phase 2');
       if (p2.disso !== undefined || p2.asso !== undefined) {
         setStreamingStatus(`✅ Phase 2: ${p2.disso || 0} DISSO, ${p2.asso || 0} ASSO`, 'Phase 2/4...');
@@ -1721,7 +1721,7 @@ const OptimizationPanel = {
       // ===== ÉTAPE 3: Phase 3 - Effectifs & Parité =====
       setStreamingStatus('📌 Phase 3/4 — Effectifs & Parité…', 'Phase 3/4...');
       const p3 = await gs('phase3Stream');  // SANS paramètres
-      console.log('✅ Phase 3:', p3);
+      LoggerClient.info('✅ Phase 3:', p3);
       if (!p3.ok) throw new Error(p3.error || 'Erreur Phase 3');
       setStreamingStatus('✅ Phase 3: Effectifs équilibrés', 'Phase 3/4...');
       await tick(200);
@@ -1730,10 +1730,10 @@ const OptimizationPanel = {
       // ===== ÉTAPE 4: Phase 4 - Swaps =====
       setStreamingStatus('📌 Phase 4/4 — Swaps…', 'Phase 4/4...');
       const p4 = await gs('phase4Stream');  // SANS paramètres
-      console.log('✅ Phase 4:', p4);
+      LoggerClient.info('✅ Phase 4:', p4);
       if (!p4.ok) throw new Error(p4.error || 'Erreur Phase 4');
       if (p4.swaps !== undefined) {
-        console.log(`  🔄 Swaps appliqués: ${p4.swaps}`);
+        LoggerClient.debug(`  🔄 Swaps appliqués: ${p4.swaps}`);
         setStreamingStatus(`✅ Phase 4: ${p4.swaps} swaps appliqués`, 'Phase 4/4...');
       }
       await tick(200);
@@ -1742,14 +1742,14 @@ const OptimizationPanel = {
       // ===== ÉTAPE 5: Audit final =====
       setStreamingStatus('🔎 Audit final…', 'Audit...');
       const auditResult = await gs('auditStream');  // SANS paramètres
-      console.log('✅ Audit:', auditResult);
+      LoggerClient.info('✅ Audit:', auditResult);
       if (!auditResult.ok) throw new Error(auditResult.error || 'Erreur Audit');
 
       await tick(200);
       await refreshLiveSnapshot(ctx);
 
       if (auditResult.audit) {
-        console.log('🔍 Audit final par classe:');
+        LoggerClient.debug('🔍 Audit final par classe:');
         console.table(Object.entries(auditResult.audit).map(([cls, a]) => ({
           classe: cls,
           total: a.total,
@@ -1762,7 +1762,7 @@ const OptimizationPanel = {
 
       // ✅ NOUVEAU : Log moyennes scores
       if (auditResult.scores) {
-        console.log('📊 Moyennes scores par classe:');
+        LoggerClient.info('📊 Moyennes scores par classe:');
         console.table(Object.entries(auditResult.scores).map(([cls, s]) => ({
           classe: cls,
           COM: s.COM,
@@ -1777,7 +1777,7 @@ const OptimizationPanel = {
       
       // ===== SUCCÈS =====
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      console.log(`✅ OPTIMISATION TERMINÉE EN ${duration}s`);
+      LoggerClient.info(`✅ OPTIMISATION TERMINÉE EN ${duration}s`);
       
       setStreamingStatus(`✅ Terminé en ${duration}s !`, '');
       
@@ -1828,9 +1828,9 @@ const OptimizationPanel = {
       // Cela évite que l'auto-save écrase les onglets CACHE créés par l'optimisation
       if (autoSaveWasStopped) {
         this.optimizationPendingApplication = true;
-        console.log('⏸️ Auto-save SUSPENDU en attente d\'application des résultats');
-        console.log('   → Cliquez sur "Appliquer" pour valider et relancer l\'auto-save');
-        console.log('   → Cliquez sur "Annuler" pour restaurer et relancer l\'auto-save');
+        LoggerClient.debug('⏸️ Auto-save SUSPENDU en attente d\'application des résultats');
+        LoggerClient.debug('   → Cliquez sur "Appliquer" pour valider et relancer l\'auto-save');
+        LoggerClient.debug('   → Cliquez sur "Annuler" pour restaurer et relancer l\'auto-save');
       }
     }
   },
@@ -1857,16 +1857,16 @@ const OptimizationPanel = {
     let failureHandled = false;
     
     // ✅ CORRECTION CRITIQUE : Suspendre l'auto-save pendant l'optimisation
-    console.log('⏸️ Suspension de l\'auto-save pendant l\'optimisation...');
+    LoggerClient.debug('⏸️ Suspension de l\'auto-save pendant l\'optimisation...');
     let autoSaveWasStopped = false;
     if (typeof stopAutoSave === 'function') {
       stopAutoSave();
       autoSaveWasStopped = true;
-      console.log('✅ Auto-save suspendu');
+      LoggerClient.info('✅ Auto-save suspendu');
     } else if (typeof stopCacheAutoSave === 'function') {
       stopCacheAutoSave();
       autoSaveWasStopped = true;
-      console.log('✅ Cache auto-save suspendu');
+      LoggerClient.info('✅ Cache auto-save suspendu');
     } else {
       console.warn('⚠️ Aucune fonction d\'arrêt auto-save trouvée');
     }
@@ -1908,7 +1908,7 @@ const OptimizationPanel = {
         ? AppState.selectedMode
         : 'TEST';
 
-      console.log('Mode de travail sélectionné:', workMode);
+      LoggerClient.debug('Mode de travail sélectionné:', workMode);
 
       // Préparer les options pour l'orchestrateur V14I
       const optimizationOptions = {
@@ -1947,8 +1947,8 @@ const OptimizationPanel = {
         return;
       }
 
-      console.log('📤 Envoi de optionsByClass vers le serveur:', JSON.stringify(optionsByClass));
-      console.log('🔍 Détail optionsByClass:', optionsByClass);
+      LoggerClient.debug('📤 Envoi de optionsByClass vers le serveur:', JSON.stringify(optionsByClass));
+      LoggerClient.debug('🔍 Détail optionsByClass:', optionsByClass);
 
       // ✅ VÉRIFICATION CRITIQUE : Vérifier que setStructureOptionsFromUI existe
       let structureConfigured = false;
@@ -1963,9 +1963,9 @@ const OptimizationPanel = {
               google.script.run
                 .withSuccessHandler((result) => {
                   clearTimeout(timeout);
-                  console.log('✅ setStructureOptionsFromUI succès:', result);
+                  LoggerClient.info('✅ setStructureOptionsFromUI succès:', result);
                   if (result && result.success) {
-                    console.log('✅✅ Options ÉCRITES dans _STRUCTURE:', result.message);
+                    LoggerClient.info('✅✅ Options ÉCRITES dans _STRUCTURE:', result.message);
                     structureConfigured = true;
                   } else {
                     console.error('❌ setStructureOptionsFromUI a échoué:', result);
@@ -2004,7 +2004,7 @@ const OptimizationPanel = {
         if (confirm('Les options n\'ont pas pu être configurées dans _STRUCTURE.\nContinuer quand même l\'optimisation (non recommandé) ?')) {
           console.warn('Continuation forcée malgré l\'échec de configuration');
         } else {
-          console.log('Optimisation annulée par l\'utilisateur');
+          LoggerClient.debug('Optimisation annulée par l\'utilisateur');
           return;
         }
       }
@@ -2012,7 +2012,7 @@ const OptimizationPanel = {
       optimizationOptions.optionsByClass = optionsByClass;
       optimizationOptions.quotasFromInterface = true;
 
-      console.log('Options optimisation V14I:', optimizationOptions);
+      LoggerClient.debug('Options optimisation V14I:', optimizationOptions);
 
       // Appeler l'orchestrateur V14I (Google Apps Script)
       const self = this;
@@ -2071,29 +2071,29 @@ const OptimizationPanel = {
               sourceSuffix:   result?.sourceSuffix ?? (workMode || 'TEST')
             };
 
-            console.log('✅ Réponse normalisée:', normalized);
+            LoggerClient.info('✅ Réponse normalisée:', normalized);
 
             // ✅ Afficher les stats CACHE détaillées
             if (result && result.cacheSheets && Array.isArray(result.cacheSheets)) {
-              console.log('📂 Onglets CACHE créés:', result.cacheSheets);
+              LoggerClient.debug('📂 Onglets CACHE créés:', result.cacheSheets);
             }
 
             if (result && result.cacheStats && Array.isArray(result.cacheStats)) {
-              console.log('📊 Stats CACHE détaillées:');
+              LoggerClient.info('📊 Stats CACHE détaillées:');
               console.table(result.cacheStats);
             }
 
             if (result && result.openedInfo) {
-              console.log('🔓 Onglets activés:', result.openedInfo);
+              LoggerClient.info('🔓 Onglets activés:', result.openedInfo);
             }
 
             if (result && result.quotasLus) {
-              console.log('📋 Quotas lus depuis _STRUCTURE:', result.quotasLus);
+              LoggerClient.debug('📋 Quotas lus depuis _STRUCTURE:', result.quotasLus);
             }
 
             // ✅ Afficher l'audit de conformité par classe
             if (result && result.cacheAudit) {
-              console.log('🔎 Audit final par classe:');
+              LoggerClient.debug('🔎 Audit final par classe:');
               console.table(Object.entries(result.cacheAudit).map(([cls, a]) => ({
                 classe: cls,
                 total: a.total,
@@ -2146,12 +2146,12 @@ const OptimizationPanel = {
             if (typeof AppState !== 'undefined') {
               AppState.currentMode = 'CACHE';
               AppState.selectedMode = 'CACHE'; // Alias pour compatibilité
-              console.log('✅ Mode basculé sur CACHE (résultats optimisation)');
+              LoggerClient.info('✅ Mode basculé sur CACHE (résultats optimisation)');
             }
 
             // ✅ RECHARGER L'INTERFACE POUR AFFICHER LES ONGLETS CACHE (avec délai pour laisser Google Sheets se synchroniser)
             if (typeof loadData === 'function') {
-              console.log('🔄 Rechargement des données depuis CACHE...');
+              LoggerClient.debug('🔄 Rechargement des données depuis CACHE...');
               setTimeout(function() {
                 loadData({ mode: 'CACHE', force: true });
               }, 500); // Délai de 500ms pour laisser temps à Google Sheets
@@ -2188,7 +2188,7 @@ const OptimizationPanel = {
 
             // ✅ Optionnel : recharger quand même en CACHE pour voir si les feuilles sont là
             if (typeof loadData === 'function') {
-              console.log('⚠️ Échec détecté, rechargement CACHE pour vérification…');
+              LoggerClient.warn('⚠️ Échec détecté, rechargement CACHE pour vérification…');
               loadData({ mode: 'CACHE', force: true });
             }
 
@@ -2222,9 +2222,9 @@ const OptimizationPanel = {
       // Cela évite que l'auto-save écrase les onglets CACHE créés par l'optimisation
       if (autoSaveWasStopped) {
         this.optimizationPendingApplication = true;
-        console.log('⏸️ Auto-save SUSPENDU en attente d\'application des résultats');
-        console.log('   → Cliquez sur "Appliquer" pour valider et relancer l\'auto-save');
-        console.log('   → Cliquez sur "Annuler" pour restaurer et relancer l\'auto-save');
+        LoggerClient.debug('⏸️ Auto-save SUSPENDU en attente d\'application des résultats');
+        LoggerClient.debug('   → Cliquez sur "Appliquer" pour valider et relancer l\'auto-save');
+        LoggerClient.debug('   → Cliquez sur "Annuler" pour restaurer et relancer l\'auto-save');
       }
     }
   },
@@ -2730,7 +2730,7 @@ const OptimizationPanel = {
         this.close();
 
         // ✅ CORRECTION CRITIQUE : Vider le cache navigateur pour éviter les collisions
-        console.log('🧹 Vidage du cache navigateur...');
+        LoggerClient.debug('🧹 Vidage du cache navigateur...');
         
         // 1. Vider le localStorage des données de disposition
         const keysToRemove = [];
@@ -2741,39 +2741,39 @@ const OptimizationPanel = {
           }
         }
         keysToRemove.forEach(key => {
-          console.log('  🗑️ Suppression cache:', key);
+          LoggerClient.debug('  🗑️ Suppression cache:', key);
           localStorage.removeItem(key);
         });
         
         // 2. Mettre à jour le sélecteur de mode dans localStorage
         localStorage.setItem('mode-selection', 'CACHE');
-        console.log('  ✅ Mode CACHE défini dans localStorage');
+        LoggerClient.info('  ✅ Mode CACHE défini dans localStorage');
         
         // 3. Mettre à jour visuellement le sélecteur de mode (si présent)
         const modeSelector = document.getElementById('mode-selector');
         if (modeSelector) {
           modeSelector.value = 'CACHE';
-          console.log('  ✅ Sélecteur visuel mis à jour');
+          LoggerClient.info('  ✅ Sélecteur visuel mis à jour');
         }
         
         // 4. Mettre à jour STATE.currentMode et le badge
         if (typeof STATE !== 'undefined') {
           STATE.currentMode = 'CACHE';
-          console.log('  ✅ STATE.currentMode = CACHE');
+          LoggerClient.info('  ✅ STATE.currentMode = CACHE');
         }
         if (typeof showModeBadge === 'function') {
           showModeBadge('CACHE');
-          console.log('  ✅ Badge de mode mis à jour');
+          LoggerClient.info('  ✅ Badge de mode mis à jour');
         }
         
         // 5. Attendre un peu pour que le cache soit bien vidé
         await new Promise(resolve => setTimeout(resolve, 500));
         
         // 5. Recharger l'interface avec les données CACHE DEPUIS LE SERVEUR
-        console.log('📂 Rechargement COMPLET depuis le serveur...');
+        LoggerClient.debug('📂 Rechargement COMPLET depuis le serveur...');
         
         if (typeof loadDataForMode === 'function') {
-          console.log('  📡 Appel loadDataForMode(CACHE)...');
+          LoggerClient.debug('  📡 Appel loadDataForMode(CACHE)...');
           await loadDataForMode('CACHE');
           
           if (typeof toast === 'function') {
@@ -2781,7 +2781,7 @@ const OptimizationPanel = {
           }
         } else if (typeof loadData === 'function') {
           // Fallback si loadDataForMode n'existe pas
-          console.log('  📡 Appel loadData (fallback)...');
+          LoggerClient.debug('  📡 Appel loadData (fallback)...');
           loadData({ mode: 'CACHE', force: true });
           
           if (typeof toast === 'function') {
@@ -2796,14 +2796,14 @@ const OptimizationPanel = {
         
         // ✅ RELANCER L'AUTO-SAVE après application des résultats
         this.optimizationPendingApplication = false;
-        console.log('▶️ Relance de l\'auto-save dans 30 secondes (temps de stabilisation)...');
+        LoggerClient.debug('▶️ Relance de l\'auto-save dans 30 secondes (temps de stabilisation)...');
         setTimeout(function() {
           if (typeof startAutoSave === 'function') {
             startAutoSave();
-            console.log('✅ Auto-save relancé après application');
+            LoggerClient.info('✅ Auto-save relancé après application');
           } else if (typeof startCacheAutoSave === 'function') {
             startCacheAutoSave();
-            console.log('✅ Cache auto-save relancé après application');
+            LoggerClient.info('✅ Cache auto-save relancé après application');
           }
         }, 30000); // 30 secondes pour laisser le temps au rechargement complet
 
@@ -2828,14 +2828,14 @@ const OptimizationPanel = {
       // ✅ RELANCER L'AUTO-SAVE après annulation
       if (this.optimizationPendingApplication) {
         this.optimizationPendingApplication = false;
-        console.log('▶️ Relance de l\'auto-save dans 5 secondes (après annulation)...');
+        LoggerClient.debug('▶️ Relance de l\'auto-save dans 5 secondes (après annulation)...');
         setTimeout(function() {
           if (typeof startAutoSave === 'function') {
             startAutoSave();
-            console.log('✅ Auto-save relancé après annulation');
+            LoggerClient.info('✅ Auto-save relancé après annulation');
           } else if (typeof startCacheAutoSave === 'function') {
             startCacheAutoSave();
-            console.log('✅ Cache auto-save relancé après annulation');
+            LoggerClient.info('✅ Cache auto-save relancé après annulation');
           }
         }, 5000); // 5 secondes (pas de rechargement serveur)
       }
@@ -2862,7 +2862,7 @@ const OptimizationPanel = {
 // Exposer globalement
 window.OptimizationPanel = OptimizationPanel;
 
-console.log('✅ Module OptimizationPanel chargé');
+LoggerClient.info('✅ Module OptimizationPanel chargé');
 
 })(); // Fin du DOM Environment Guard IIFE
 </script>

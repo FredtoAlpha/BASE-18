@@ -254,7 +254,7 @@ async function saveWithProgressINT() {
 // ========== APPELS GOOGLE APPS SCRIPT ==========
 function gsRun(fnName, ...args) {
   return new Promise((resolve, reject) => {
-    console.log(`📡 Appel fonction: ${fnName}`);
+    LoggerClient.debug(`📡 Appel fonction: ${fnName}`);
 
     try {
       // Vérifier si on est dans l'environnement Google Apps Script
@@ -265,7 +265,7 @@ function gsRun(fnName, ...args) {
           // Appel correct : d'abord les handlers, puis la fonction
           api
             .withSuccessHandler((result) => {
-              console.log(`✅ ${fnName} succès:`, result);
+              LoggerClient.info(`✅ ${fnName} succès:`, result);
               resolve(result);
             })
             .withFailureHandler((error) => {
@@ -513,7 +513,7 @@ if (e.mobilite === 'SPEC')
 
   const r1 = checkTag(e.lv2, 'LV2');
   if (r1 !== true) return r1;
-  console.log(eleveId, e.opt)
+  LoggerClient.debug(eleveId, e.opt)
   const r2 = checkTag(e.opt, 'Option');
   if (r2 !== true) return r2;
 
@@ -594,7 +594,7 @@ function canSwap(id1, id2) {
   const memeOPT = opt_1 === opt_2 || (!opt_1 && !opt_2);
 
   if (memeLV2 && memeOPT) {
-    console.log(`✅ Swap autorisé: ${eleve1.nom} ↔ ${eleve2.nom} (mêmes contraintes: LV2=${lv2_1 || 'aucune'}, OPT=${opt_1 || 'aucune'})`);
+    LoggerClient.info(`✅ Swap autorisé: ${eleve1.nom} ↔ ${eleve2.nom} (mêmes contraintes: LV2=${lv2_1 || 'aucune'}, OPT=${opt_1 || 'aucune'})`);
     return { ok: true };
   }
   
@@ -672,7 +672,7 @@ function canSwap(id1, id2) {
   if (eleve1.lv2 && eleve1.lv2.toUpperCase() !== 'ESP') {
     const lv2Upper = eleve1.lv2.toUpperCase();
     if (!dr1.quotas || dr1.quotas[lv2Upper] === 0) {
-      console.log(`❌ Swap refusé: ${eleve1.nom} (${lv2Upper}) interdit dans ${classe2}`);
+      LoggerClient.error(`❌ Swap refusé: ${eleve1.nom} (${lv2Upper}) interdit dans ${classe2}`);
       return { ok: false, reason: `${lv2Upper} interdit dans ${classe2}` };
     }
   }
@@ -681,7 +681,7 @@ function canSwap(id1, id2) {
   if (eleve2.lv2 && eleve2.lv2.toUpperCase() !== 'ESP') {
     const lv2Upper = eleve2.lv2.toUpperCase();
     if (!dr2.quotas || dr2.quotas[lv2Upper] === 0) {
-      console.log(`❌ Swap refusé: ${eleve2.nom} (${lv2Upper}) interdit dans ${classe1}`);
+      LoggerClient.error(`❌ Swap refusé: ${eleve2.nom} (${lv2Upper}) interdit dans ${classe1}`);
       return { ok: false, reason: `${lv2Upper} interdit dans ${classe1}` };
     }
   }
@@ -690,7 +690,7 @@ function canSwap(id1, id2) {
   if (eleve1.opt && eleve1.opt.trim()) {
     const optUpper = eleve1.opt.toUpperCase();
     if (!dr1.quotas || dr1.quotas[optUpper] === 0) {
-      console.log(`❌ Swap refusé: ${eleve1.nom} (OPT ${optUpper}) interdit dans ${classe2}`);
+      LoggerClient.error(`❌ Swap refusé: ${eleve1.nom} (OPT ${optUpper}) interdit dans ${classe2}`);
       return { ok: false, reason: `Option ${optUpper} interdite dans ${classe2}` };
     }
   }
@@ -699,12 +699,12 @@ function canSwap(id1, id2) {
   if (eleve2.opt && eleve2.opt.trim()) {
     const optUpper = eleve2.opt.toUpperCase();
     if (!dr2.quotas || dr2.quotas[optUpper] === 0) {
-      console.log(`❌ Swap refusé: ${eleve2.nom} (OPT ${optUpper}) interdit dans ${classe1}`);
+      LoggerClient.error(`❌ Swap refusé: ${eleve2.nom} (OPT ${optUpper}) interdit dans ${classe1}`);
       return { ok: false, reason: `Option ${optUpper} interdite dans ${classe1}` };
     }
   }
   
-  console.log(`✅ Swap autorisé: ${eleve1.nom} ↔ ${eleve2.nom} (quotas respectés)`);
+  LoggerClient.info(`✅ Swap autorisé: ${eleve1.nom} ↔ ${eleve2.nom} (quotas respectés)`);
   return { ok: true };
 }
 
@@ -830,7 +830,7 @@ function handleCardClick(e) {
 // ========== FONCTION HELPER POUR SIMPLIFIER LES NOMS COMPOSÉS ========== 
 // VERSION 4.3 - Octobre 2025 - InterfaceV2
 // Logique corrigée: premier mot = NOM, dernier mot = PRÉNOM
-console.log('🔄 VERSION 4.3 - Fonction simplifierNomComplet corrigée (premier/dernier mot)');
+LoggerClient.debug('🔄 VERSION 4.3 - Fonction simplifierNomComplet corrigée (premier/dernier mot)');
 
 function simplifierNomComplet(nom, prenom) {
   // VERSION 4.3 - Logique corrigée: premier mot = NOM, dernier mot = PRÉNOM
@@ -881,13 +881,9 @@ function simplifierNomComplet(nom, prenom) {
   }
 
   // ✅ Logs de débogage désactivés (trop verbeux)
-  // console.log(`DEBUG_SIMPLIFIER: nom="${nom}", prenom="${prenom}"`);
-  // console.log(`DEBUG_SIMPLIFIER: finalNom="${finalNom}", finalPrenom="${finalPrenom}"`);
-  // console.log(`DEBUG_SIMPLIFIER: resultat="${resultat}"`);
 
   if (nom !== finalNom || prenom !== finalPrenom || resultat.length > MAX_LENGTH) {
     // DÉSACTIVÉ en mode production (log trop verbeux)
-    // console.log(`✂️ InterfaceV2 v4.3 - Nom simplifié: "${nom} ${prenom}" → "${resultat}" (${resultat.length} car.)`);
   }
 
   return resultat;
@@ -899,7 +895,7 @@ simplifierNomComplet.version = '4.3';
 // Exposer sur window pour accessibilité globale
 if (typeof window !== 'undefined') {
   window.simplifierNomComplet = simplifierNomComplet;
-  console.log('✅ simplifierNomComplet VERSION 4.3 exposée globalement depuis InterfaceV2');
+  LoggerClient.info('✅ simplifierNomComplet VERSION 4.3 exposée globalement depuis InterfaceV2');
 }
 
 // ========== PHASE 3: FONCTIONS UTILITAIRES (DRY) ==========
@@ -1322,9 +1318,9 @@ function createClassColumn(classe, eleves) {
       }
       
       // 🔥 VÉRIFICATION MODE FORCE
-      console.log('🔍 Filtre Sortable - STATE.adminMode =', STATE?.adminMode);
+      LoggerClient.debug('🔍 Filtre Sortable - STATE.adminMode =', STATE?.adminMode);
       if (STATE.adminMode) {
-        console.log('🔥 MODE FORCE ACTIF - Drag autorisé sans vérification');
+        LoggerClient.error('🔥 MODE FORCE ACTIF - Drag autorisé sans vérification');
         return false; // En mode admin, tout est draggable
       }
       
@@ -1332,7 +1328,7 @@ function createClassColumn(classe, eleves) {
       if (!eleveId) return false; // Pas d'ID, autoriser (ne devrait pas arriver)
       const eleve = STATE.students[eleveId];
       if (eleve && eleve.mobilite && ['FIXE', 'SPEC', 'CONDI', 'PERMUT'].includes(eleve.mobilite)) {
-        console.log(`🔒 Drag bloqué pour ${eleve.nom} (${eleve.mobilite}) - MODE FORCE INACTIF`);
+        LoggerClient.debug(`🔒 Drag bloqué pour ${eleve.nom} (${eleve.mobilite}) - MODE FORCE INACTIF`);
         toast(`${eleve.nom} est ${eleve.mobilite} - Utilisez le mode Swap ou le mode Force`, 'warning');
         return true; // Bloquer le drag
       }
@@ -1340,19 +1336,19 @@ function createClassColumn(classe, eleves) {
     },
     onEnd: handleSortEnd,
     onStart: (evt) => {
-      console.log('🖱️ Drag started:', evt.item.dataset.id);
+      LoggerClient.debug('🖱️ Drag started:', evt.item.dataset.id);
       // Stocker l'élément en cours de déplacement
       STATE.draggingElement = evt.item;
       STATE.dragStartZone = evt.from;
     },
     onMove: (evt) => {
-      console.log('🖱️ Drag move:', evt.dragged.dataset.id, 'from', evt.from.dataset.classe, 'to', evt.to.dataset.classe);
+      LoggerClient.debug('🖱️ Drag move:', evt.dragged.dataset.id, 'from', evt.from.dataset.classe, 'to', evt.to.dataset.classe);
     }
   });
   
   // (SUPPRIMÉ : double appel de handleSortEnd - onEnd de SortableJS suffit)
   
-  console.log('🔧 Sortable créé pour zone:', dropZone.dataset.classe);
+  LoggerClient.debug('🔧 Sortable créé pour zone:', dropZone.dataset.classe);
 
   // Cartes élèves
   clean.forEach(e => {
@@ -1441,7 +1437,7 @@ function handleDrop(e) {
 
 // ========== handleSortEnd (version finale en bas du fichier, suppression de l'ancienne version) ==========
 window.handleSortEnd = function(evt) {
-  console.log('🎯 handleSortEnd CLEAN');
+  LoggerClient.info('🎯 handleSortEnd CLEAN');
   
   if (STATE.swapMode) return;
 
@@ -1465,7 +1461,7 @@ window.handleSortEnd = function(evt) {
 
   // 🔥 MODE FORCE : Tout est autorisé sans vérification
   if (STATE.adminMode) {
-    console.log('🔥 MODE FORCE: Déplacement autorisé sans vérification');
+    LoggerClient.error('🔥 MODE FORCE: Déplacement autorisé sans vérification');
   } else {
     // Mode normal : vérifier les contraintes
     const check = canMove(eleveId, oldClasse, newClasse);
@@ -1522,12 +1518,12 @@ async function loadDataForMode(mode) {
   try {
     // 🎯 Appel à l'adaptateur SAS dédié
     const result = await gsRun('getClassesDataForInterfaceV2', mode);
-    console.log('🎯 RÉSULTAT SAS getClassesDataForInterfaceV2:', JSON.stringify(result, null, 2));
-    console.log('🔍 Type de result:', typeof result);
-    console.log('🔍 result.success:', result?.success);
-    console.log('🔍 result.data (Array):', result?.data);
-    console.log('🔍 result.rules (_STRUCTURE):', result?.rules);
-    console.log('🔍 Nombre de classes:', result?.data?.length);
+    LoggerClient.info('🎯 RÉSULTAT SAS getClassesDataForInterfaceV2:', JSON.stringify(result, null, 2));
+    LoggerClient.debug('🔍 Type de result:', typeof result);
+    LoggerClient.debug('🔍 result.success:', result?.success);
+    LoggerClient.debug('🔍 result.data (Array):', result?.data);
+    LoggerClient.debug('🔍 result.rules (_STRUCTURE):', result?.rules);
+    LoggerClient.debug('🔍 Nombre de classes:', result?.data?.length);
     
     if (!result || !result.success) {
       console.error('❌ Erreur lors du chargement des données:', result?.error);
@@ -1620,7 +1616,7 @@ function renderBoard(data) {
   setTimeout(() => {
     if (typeof initCharts === 'function') {
       initCharts();
-      console.log('📊 Graphiques initialisés après chargement des données');
+      LoggerClient.info('📊 Graphiques initialisés après chargement des données');
     }
   }, 200);
 }
@@ -1686,7 +1682,7 @@ let autoSaveDebounceTimer = null;
  * Sauvegarde 30 secondes après la dernière action utilisateur
  */
 function startAutoSave() {
-  console.log('🔄 Auto-save CACHE activé (débounce 30s après dernière action)');
+  LoggerClient.debug('🔄 Auto-save CACHE activé (débounce 30s après dernière action)');
 
   // Fonction pour planifier la sauvegarde
   window.scheduleAutoSave = function() {
@@ -1698,7 +1694,7 @@ function startAutoSave() {
     // Planifier une nouvelle sauvegarde dans 30 secondes
     autoSaveDebounceTimer = setTimeout(async () => {
       if (typeof window.saveImmediateCache === 'function') {
-        console.log('⏰ Déclenchement auto-save (30s après dernière action)');
+        LoggerClient.warn('⏰ Déclenchement auto-save (30s après dernière action)');
         await window.saveImmediateCache();
       }
     }, 30000); // 30 secondes
@@ -1712,7 +1708,7 @@ function stopAutoSave() {
   if (autoSaveDebounceTimer !== null) {
     clearTimeout(autoSaveDebounceTimer);
     autoSaveDebounceTimer = null;
-    console.log('⏹️ Auto-save arrêté');
+    LoggerClient.debug('⏹️ Auto-save arrêté');
   }
 
   // Nettoyer la fonction globale
@@ -1743,18 +1739,18 @@ async function checkCache() {
 
   // 2. Si pas de localStorage, vérifier le backend (PropertiesService)
   try {
-    console.log('🔍 Vérification de la sauvegarde automatique depuis le backend...');
+    LoggerClient.debug('🔍 Vérification de la sauvegarde automatique depuis le backend...');
     const backendCache = await gsRun('getLastCacheInfo');
 
     if (backendCache && backendCache.exists && backendCache.date) {
-      console.log('✅ Sauvegarde automatique trouvée dans le backend:', backendCache);
+      LoggerClient.info('✅ Sauvegarde automatique trouvée dans le backend:', backendCache);
       if (restoreBlock) restoreBlock.classList.remove('hidden');
       if (lastDate) {
         const date = new Date(backendCache.date);
         lastDate.textContent = date.toLocaleString('fr-FR');
       }
     } else {
-      console.log('ℹ️ Aucune sauvegarde automatique trouvée');
+      LoggerClient.debug('ℹ️ Aucune sauvegarde automatique trouvée');
       if (restoreBlock) restoreBlock.classList.add('hidden');
     }
   } catch (error) {
@@ -1983,7 +1979,7 @@ const App = {
      * Met à jour les statistiques de toutes les colonnes
      */
     updateAllColumnStats() {
-      console.log('📊 App.UI.updateAllColumnStats - version modulaire');
+      LoggerClient.info('📊 App.UI.updateAllColumnStats - version modulaire');
 
       document.querySelectorAll('.class-column').forEach(column => {
         const className = column.querySelector('.classe-name').textContent;
@@ -2052,7 +2048,7 @@ const App = {
      * @param {string} classId - ID de la classe (ex: "6°1")
      */
     addStudentToClass(newStudent, classId) {
-      console.log(`[App.UI.addStudentToClass] Ajout de ${newStudent.nom} ${newStudent.prenom} dans ${classId}`);
+      LoggerClient.debug(`[App.UI.addStudentToClass] Ajout de ${newStudent.nom} ${newStudent.prenom} dans ${classId}`);
 
       if (!newStudent || !newStudent.id || !classId) {
         console.error('[App.UI.addStudentToClass] Données invalides');
@@ -2075,7 +2071,7 @@ const App = {
         const card = createStudentCard(newStudent);
         if (card) {
           dropZone.appendChild(card);
-          console.log(`[App.UI.addStudentToClass] Carte DOM créée et insérée`);
+          LoggerClient.debug(`[App.UI.addStudentToClass] Carte DOM créée et insérée`);
         }
       }
 
@@ -2115,7 +2111,7 @@ const App = {
         setTimeout(() => App.Data.saveImmediateCache(), 200);
       }
 
-      console.log(`[App.UI.addStudentToClass] ✅ Élève ajouté avec succès`);
+      LoggerClient.info(`[App.UI.addStudentToClass] ✅ Élève ajouté avec succès`);
       return true;
     }
   },
@@ -2254,26 +2250,26 @@ const App = {
      * Met à jour les statistiques avancées
      */
     updateAdvancedStats() {
-      console.log('📊 App.Stats.updateAdvancedStats',
+      LoggerClient.info(console.log('📊 App.Stats.updateAdvancedStats',)
                   'chartsReady=', window.areChartsReady?.(),
                   'typeof updateCharts =', typeof updateCharts);
 
       const panel = document.getElementById('statsPanel');
       if (!panel || panel.classList.contains('translate-x-full')) {
-        console.log('📊 Panneau fermé, skip mise à jour');
+        LoggerClient.info('📊 Panneau fermé, skip mise à jour');
         return;
       }
 
       if (typeof updateNewMetrics === 'function') {
-        console.log('🔢 updateNewMetrics lancé');
+        LoggerClient.debug('🔢 updateNewMetrics lancé');
         updateNewMetrics();
       }
 
-      console.log('📊 Appel de updateCharts()...');
+      LoggerClient.info('📊 Appel de updateCharts()...');
       if (typeof updateCharts === 'function') {
         updateCharts();
       }
-      console.log('📊 updateCharts() terminé');
+      LoggerClient.info('📊 updateCharts() terminé');
 
       if (typeof updateLV2Details === 'function') {
         updateLV2Details();
@@ -2333,7 +2329,7 @@ const App = {
             const result = await gsRun('saveDispositionToSheets', disposition);
 
             if (result && result.success) {
-              console.log(`💾 Sauvegarde CACHE réussie: ${result.saved} onglets créés`);
+              LoggerClient.debug(`💾 Sauvegarde CACHE réussie: ${result.saved} onglets créés`);
 
               // 2. Après succès → on remet le flag à false,
               //    on horodate, on met à jour le badge
@@ -2526,7 +2522,7 @@ function resizeCards(){
 // ======================================================
 async function initializeBridge() {
   try {
-    console.log('🌉 Initialisation du pont depuis la Console de Pilotage...');
+    LoggerClient.debug('🌉 Initialisation du pont depuis la Console de Pilotage...');
     // Cette fonction côté serveur lit la propriété utilisateur 'JULES_CONTEXT' et la supprime.
     const result = await gsRun('getBridgeContextAndClear');
 
@@ -2534,10 +2530,10 @@ async function initializeBridge() {
       const mode = result.context.mode;
       const sourceSheet = result.context.sourceSheetName || 'source';
 
-      console.log(`📡 Contexte reçu: Mode=${mode}, Source=${sourceSheet}`);
+      LoggerClient.debug(`📡 Contexte reçu: Mode=${mode}, Source=${sourceSheet}`);
 
       localStorage.setItem('mode-selection', mode);
-      console.log(`✅ Mode "${mode}" défini depuis le contexte.`);
+      LoggerClient.info(`✅ Mode "${mode}" défini depuis le contexte.`);
       toast(`Contexte chargé depuis la console (Mode: ${mode})`, 'success');
 
       // Cacher le modal de démarrage et lancer l'application
@@ -2549,7 +2545,7 @@ async function initializeBridge() {
       await initRepartitionApp();
 
     } else {
-      console.log('🤷 Aucun contexte trouvé ou mode manquant, ouverture du modal de démarrage.');
+      LoggerClient.debug('🤷 Aucun contexte trouvé ou mode manquant, ouverture du modal de démarrage.');
       openStartupModal();
     }
   } catch (error) {
@@ -2563,7 +2559,7 @@ async function initializeBridge() {
 // INITIALISATION QUAND LE DOM EST PRÊT
 // =======================================================
 window.addEventListener('DOMContentLoaded', (event) => {
-  console.log("DOM prêt. Tous les scripts peuvent s'exécuter.");
+  LoggerClient.debug("DOM prêt. Tous les scripts peuvent s'exécuter.");
 
   // Vérifier si une sauvegarde CACHE existe
   checkCache();
@@ -2700,7 +2696,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
     
     if (btnUndoMenu) {
       btnUndoMenu.addEventListener('click', () => {
-        console.log('🔄 Bouton Annuler cliqué, history.length=', STATE.history?.length);
+        LoggerClient.debug('🔄 Bouton Annuler cliqué, history.length=', STATE.history?.length);
         if (window.undo) {
           window.undo();
         } else if (App && App.History && App.History.undo) {
@@ -2732,7 +2728,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
     
     if (btnRedoMenu) {
       btnRedoMenu.addEventListener('click', () => {
-        console.log('🔄 Bouton Rétablir cliqué, future.length=', STATE.future?.length);
+        LoggerClient.debug('🔄 Bouton Rétablir cliqué, future.length=', STATE.future?.length);
         if (window.redo) {
           window.redo();
         } else if (App && App.History && App.History.redo) {
@@ -2956,7 +2952,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
       setRadioValue('genderDisplay', prefs.symbols || 'colors');
     }
     
-    console.log('✅ Menu Régler (dropdown) initialisé');
+    LoggerClient.info('✅ Menu Régler (dropdown) initialisé');
   })();
   // =======================================================
   // FONCTION GLOBALE POUR APPLIQUER LES PRÉFÉRENCES DE LISIBILITÉ
@@ -3087,7 +3083,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
           updateCharts();
         }
 
-        console.log('📊 Panneau stats ouvert');
+        LoggerClient.info('📊 Panneau stats ouvert');
       }, 50);
     });
   };
@@ -3107,7 +3103,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
       floatClose.classList.add('hidden');
     }
 
-    console.log('📊 Panneau stats fermé');
+    LoggerClient.info('📊 Panneau stats fermé');
   };
 
   // =======================================================
@@ -3161,7 +3157,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
       }
     });
     
-    console.log('✅ Menu Éditer (dropdown) initialisé');
+    LoggerClient.info('✅ Menu Éditer (dropdown) initialisé');
   })();
 
   // =======================================================
@@ -3193,7 +3189,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
         // Accessibilité propre
         btnComparer.setAttribute('aria-expanded', 'false');
         
-        console.log('📊 Stats fermées via bouton Comparer (panic button)');
+        LoggerClient.info('📊 Stats fermées via bouton Comparer (panic button)');
         return;
       }
       
@@ -3282,10 +3278,10 @@ window.addEventListener('DOMContentLoaded', (event) => {
       // Sauvegarder la préférence
       if (document.body.classList.contains('header-xl')) {
         localStorage.setItem('headerDensity', 'xl');
-        console.log('🖥️ Mode confort activé (header XL)');
+        LoggerClient.debug('🖥️ Mode confort activé (header XL)');
       } else {
         localStorage.setItem('headerDensity', 'compact');
-        console.log('📽️ Mode compact activé (réunion/vidéoprojecteur)');
+        LoggerClient.debug('📽️ Mode compact activé (réunion/vidéoprojecteur)');
       }
     };
     
@@ -3318,7 +3314,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
           if (btnRegler) {
             btnRegler.setAttribute('aria-expanded', 'false');
           }
-          console.log('⌨️ Menu Régler fermé via Échap');
+          LoggerClient.debug('⌨️ Menu Régler fermé via Échap');
         }
 
         // Fermer le menu Comparer (le petit dropdown Comparer)
@@ -3328,7 +3324,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
           if (btnComparer) {
             btnComparer.setAttribute('aria-expanded', 'false');
           }
-          console.log('⌨️ Menu Comparer fermé via Échap');
+          LoggerClient.debug('⌨️ Menu Comparer fermé via Échap');
         }
 
         // Fermer le menu Éditer
@@ -3338,13 +3334,13 @@ window.addEventListener('DOMContentLoaded', (event) => {
           if (btnEditer) {
             btnEditer.setAttribute('aria-expanded', 'false');
           }
-          console.log('⌨️ Menu Éditer fermé via Échap');
+          LoggerClient.debug('⌨️ Menu Éditer fermé via Échap');
         }
 
         // Fermer le panneau stats
         if (statsPanel && !statsPanel.classList.contains('translate-x-full')) {
           closeStatsPanel();
-          console.log('⌨️ Panneau stats fermé via Échap');
+          LoggerClient.debug('⌨️ Panneau stats fermé via Échap');
         }
       }
     });
@@ -3365,7 +3361,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
       console.error('❌ toggleAdminMode() est DÉSACTIVÉE - Le menu Admin est géré par AdminMenuFix');
       if (window.toast) toast('❌ Fonction désactivée - Utilisez le menu Admin', 'error');
     };
-    console.log('🔒 toggleAdminMode() legacy BLOQUÉE globalement');
+    LoggerClient.debug('🔒 toggleAdminMode() legacy BLOQUÉE globalement');
 
     // 1) Déduplication stricte des #dropdownAdmin (root du menu)
     const admins = Array.from(document.querySelectorAll('#dropdownAdmin'));
@@ -3392,7 +3388,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
     localStorage.removeItem('adminUnlocked');
     localStorage.removeItem('adminForceMode');
     if (window.STATE) window.STATE.adminMode = false;
-    console.log('🔒 localStorage nettoyé au démarrage (sécurité maximale)');
+    LoggerClient.debug('🔒 localStorage nettoyé au démarrage (sécurité maximale)');
 
     function paintLockedUI() {
       lockMsg && lockMsg.classList.remove('hidden');
@@ -3402,7 +3398,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
         btnAdmin.classList.remove('bg-green-700','hover:bg-green-800');
         btnAdmin.classList.add('bg-red-600','text-white','hover:bg-red-700');
       }
-      console.log('🔒 Admin verrouillé - état OFF (par défaut)');
+      LoggerClient.debug('🔒 Admin verrouillé - état OFF (par défaut)');
     }
 
     function paintUnlockedUI() {
@@ -3413,7 +3409,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
         btnAdmin.classList.remove('bg-red-600','hover:bg-red-700');
         btnAdmin.classList.add('bg-green-700','text-white','hover:bg-green-800');
       }
-      console.log('✅ Admin déverrouillé - état ON');
+      LoggerClient.info('✅ Admin déverrouillé - état ON');
     }
 
     function applyState() {
@@ -3423,7 +3419,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
     
     // GARANTIR que le menu est FERMÉ au démarrage
     adminRoot.classList.add('hidden', 'opacity-0', 'scale-95');
-    console.log('🔒 Menu Admin fermé par défaut');
+    LoggerClient.debug('🔒 Menu Admin fermé par défaut');
     
     // Fonctions d'animation fluide
     function openMenu() {
@@ -3633,17 +3629,17 @@ window.addEventListener('DOMContentLoaded', (event) => {
       // TOUJOURS désactivé au démarrage (sécurité)
       toggleForce.checked = false;
       if (window.STATE) window.STATE.adminMode = false;
-      console.log('🔒 Mode Force désactivé au démarrage (sécurité)');
+      LoggerClient.debug('🔒 Mode Force désactivé au démarrage (sécurité)');
       
       toggleForce.addEventListener('change', () => {
         const isOn = toggleForce.checked;
-        console.log('🔄 Toggle Mode Force changé:', isOn);
-        console.log('   window.STATE existe?', !!window.STATE);
-        console.log('   STATE existe?', typeof STATE !== 'undefined');
+        LoggerClient.debug('🔄 Toggle Mode Force changé:', isOn);
+        LoggerClient.debug('   window.STATE existe?', !!window.STATE);
+        LoggerClient.debug('   STATE existe?', typeof STATE !== 'undefined');
         
         if (window.STATE) {
           window.STATE.adminMode = isOn;
-          console.log('   ✅ window.STATE.adminMode =', window.STATE.adminMode);
+          LoggerClient.info('   ✅ window.STATE.adminMode =', window.STATE.adminMode);
         } else {
           console.error('   ❌ window.STATE n\'existe pas!');
         }
@@ -3652,19 +3648,19 @@ window.addEventListener('DOMContentLoaded', (event) => {
         
         if (isOn) {
           window.toast && toast('⚠️ Mode Force activé - Toutes les contraintes sont ignorées', 'warning');
-          console.log('🔓 Mode Admin Force: ON - Déplacements libres (FIXE, PERMUT, CONDI ignorés)');
-          console.log('   STATE.adminMode =', STATE?.adminMode);
+          LoggerClient.debug('🔓 Mode Admin Force: ON - Déplacements libres (FIXE, PERMUT, CONDI ignorés)');
+          LoggerClient.debug('   STATE.adminMode =', STATE?.adminMode);
         } else {
           window.toast && toast('✅ Mode Force désactivé - Contraintes respectées', 'success');
-          console.log('🔒 Mode Admin Force: OFF - Contraintes actives');
-          console.log('   STATE.adminMode =', STATE?.adminMode);
+          LoggerClient.debug('🔒 Mode Admin Force: OFF - Contraintes actives');
+          LoggerClient.debug('   STATE.adminMode =', STATE?.adminMode);
         }
         
         // 🔄 Rafraîchir l'affichage pour mettre à jour les attributs draggable des cartes
-        console.log('🔄 Rafraîchissement de l\'affichage pour le mode Force...');
+        LoggerClient.debug('🔄 Rafraîchissement de l\'affichage pour le mode Force...');
         if (typeof renderColumns === 'function') {
           renderColumns();
-          console.log('   ✅ renderColumns() appelé');
+          LoggerClient.info('   ✅ renderColumns() appelé');
         } else {
           console.error('   ❌ renderColumns n\'existe pas!');
         }
@@ -4290,7 +4286,7 @@ function toggleViewMode() {
 
 // ========== GRAPHIQUES ==========
 function initCharts() {
-    console.log('🎨 Initialisation des graphiques...');
+    LoggerClient.debug('🎨 Initialisation des graphiques...');
     const statsContent = document.getElementById('statsContent');
     
     // HTML COMPLET avec tous les graphiques existants + nouveaux
@@ -4540,7 +4536,7 @@ function initCharts() {
     
     // Initialiser avec COM
     updateCharts('COM');
-    console.log('✅ Graphiques initialisés avec succès');
+    LoggerClient.info('✅ Graphiques initialisés avec succès');
   }
   
   // Variable locale pour le type de score actuel (comme dans la version qui fonctionne)
@@ -4578,11 +4574,11 @@ function initCharts() {
   }
   
   function updateCharts(scoreType = null) {
-    console.log('🚨 updateCharts DÉBUT - scoreType:', scoreType);
+    LoggerClient.debug('🚨 updateCharts DÉBUT - scoreType:', scoreType);
     try {
-      console.log('📊 updateCharts appelée avec scoreType:', scoreType);
+      LoggerClient.info('📊 updateCharts appelée avec scoreType:', scoreType);
       if (!scoreType) scoreType = currentScoreType;
-      console.log('📊 ScoreType final:', scoreType);
+      LoggerClient.info('📊 ScoreType final:', scoreType);
 
     // Collecter les données par classe
     const dataByClass = {};
@@ -4747,11 +4743,11 @@ function initCharts() {
     updateNewMetrics();
     updateLV2Details();
     
-    console.log('📊 Mise à jour des graphiques terminée');
+    LoggerClient.info('📊 Mise à jour des graphiques terminée');
   } catch (error) {
     console.error('❌ Erreur dans updateCharts:', error);
   }
-  console.log('🚨 updateCharts FIN');
+  LoggerClient.debug('🚨 updateCharts FIN');
 }
 
 // --- PATCH unicité updateCharts ---------------------------------
@@ -4797,7 +4793,7 @@ window.updateCharts = updateCharts;
     try {
       localStorage.setItem('darkMode', STATE.darkMode);
     } catch (e) {
-      console.log('localStorage non disponible');
+      LoggerClient.debug('localStorage non disponible');
     }
     
     // Message avec raccourci clavier
@@ -4914,7 +4910,7 @@ window.updateCharts = updateCharts;
         if (!e.ctrlKey && !e.altKey) {
           e.preventDefault();
           toggleDarkMode();
-          console.log('🌓 Raccourci clavier D : Mode sombre basculé');
+          LoggerClient.debug('🌓 Raccourci clavier D : Mode sombre basculé');
         }
       }
       
@@ -5015,7 +5011,7 @@ window.updateCharts = updateCharts;
         let successCount = 0;
         const errors = [];
 
-        console.log(`📦 Sauvegarde progressive de ${totalClasses} classe(s)...`);
+        LoggerClient.debug(`📦 Sauvegarde progressive de ${totalClasses} classe(s)...`);
 
         for (let i = 0; i < totalClasses; i++) {
           const classe = classes[i];
@@ -5037,7 +5033,7 @@ window.updateCharts = updateCharts;
               console.error(`❌ Échec sauvegarde ${classe}:`, result);
             } else {
               successCount++;
-              console.log(`✅ ${classe} sauvegardée (${successCount}/${totalClasses})`);
+              LoggerClient.info(`✅ ${classe} sauvegardée (${successCount}/${totalClasses})`);
             }
           } catch (err) {
             errors.push(`❌ ${classe}: ${err.message}`);
@@ -5071,7 +5067,7 @@ window.updateCharts = updateCharts;
 
         // Utiliser le mode forcé si fourni, sinon STATE.currentMode
         const modeToUse = forcedMode || STATE.currentMode;
-        console.log(`📊 Sauvegarde ${saveFunctionName} avec mode: ${modeToUse}`);
+        LoggerClient.info(`📊 Sauvegarde ${saveFunctionName} avec mode: ${modeToUse}`);
 
         const result = await gsRun(saveFunctionName, disposition, modeToUse);
 
@@ -5349,7 +5345,7 @@ window.updateCharts = updateCharts;
     
 // ========== FONCTION D'INITIALISATION UNIVERSELLE ==========
 async function initRepartitionApp() {
-  console.log('🚀 Init universelle...');
+  LoggerClient.debug('🚀 Init universelle...');
   let mode = localStorage.getItem('mode-selection');
   
   if (!mode) {
@@ -5426,32 +5422,32 @@ window.gsRun = gsRun;
   const closeBtn = document.getElementById('closeStartupModal');
   const btnRestore = document.getElementById('btnRestoreCache');
 
-  console.log('🔧 AUDIT: Attachement des event listeners du modal de démarrage');
-  console.log('  - Modal trouvé:', !!modal);
-  console.log('  - Badge trouvé:', !!badge);
-  console.log('  - CloseBtn trouvé:', !!closeBtn);
-  console.log('  - BtnRestore trouvé:', !!btnRestore);
+  LoggerClient.debug('🔧 AUDIT: Attachement des event listeners du modal de démarrage');
+  LoggerClient.debug('  - Modal trouvé:', !!modal);
+  LoggerClient.debug('  - Badge trouvé:', !!badge);
+  LoggerClient.debug('  - CloseBtn trouvé:', !!closeBtn);
+  LoggerClient.debug('  - BtnRestore trouvé:', !!btnRestore);
 
   if (closeBtn) {
     closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
-    console.log('  ✅ Event listener attaché: closeBtn');
+    LoggerClient.info('  ✅ Event listener attaché: closeBtn');
   }
 
   if (badge) {
     badge.addEventListener('dblclick', () => openStartupModal({ force: true }));
-    console.log('  ✅ Event listener attaché: badge');
+    LoggerClient.info('  ✅ Event listener attaché: badge');
   }
 
   if (modal) {
     const buttons = modal.querySelectorAll('button[data-mode]');
-    console.log('  - Nombre de boutons [data-mode] trouvés:', buttons.length);
+    LoggerClient.debug('  - Nombre de boutons [data-mode] trouvés:', buttons.length);
     buttons.forEach((btn, index) => {
       const mode = btn.dataset.mode;
-      console.log(`    - Bouton ${index + 1}: mode="${mode}"`);
+      LoggerClient.debug(`    - Bouton ${index + 1}: mode="${mode}"`);
 
       btn.addEventListener('click', async e => { // Notez "async"
         const mode = e.currentTarget.dataset.mode;
-        console.log(`🖱️ CLIC sur bouton mode: ${mode}`);
+        LoggerClient.debug(`🖱️ CLIC sur bouton mode: ${mode}`);
 
         // ❌ BLOQUER SOURCES (non implémenté)
         if (mode === 'SOURCES') {
@@ -5461,22 +5457,22 @@ window.gsRun = gsRun;
 
         // ✅ CORRECTION : Protéger PREVIOUS et FIN avec mot de passe admin
         if ((mode === 'PREVIOUS' || mode === 'FIN') && !STATE.adminMode) {
-          console.log(`🔐 Demande mot de passe admin pour mode: ${mode}`);
+          LoggerClient.debug(`🔐 Demande mot de passe admin pour mode: ${mode}`);
           const password = prompt('Veuillez entrer le mot de passe administrateur :', '');
           if (password === null) {
-            console.log('❌ Mot de passe annulé par l\'utilisateur');
+            LoggerClient.error('❌ Mot de passe annulé par l\'utilisateur');
             return; // Annulé par l'utilisateur
           }
 
           try {
-            console.log('⏳ Vérification du mot de passe admin...');
+            LoggerClient.debug('⏳ Vérification du mot de passe admin...');
             const result = await gsRun('verifierMotDePasseAdmin', password);
             if (!result || !result.success) {
-              console.log('❌ Mot de passe incorrect');
+              LoggerClient.error('❌ Mot de passe incorrect');
               alert('Mot de passe incorrect.');
               return;
             }
-            console.log('✅ Mot de passe correct, adminMode activé');
+            LoggerClient.info('✅ Mot de passe correct, adminMode activé');
             STATE.adminMode = true;
           } catch (err) {
             console.error('💥 Erreur vérification mot de passe:', err);
@@ -5485,28 +5481,28 @@ window.gsRun = gsRun;
           }
         }
 
-        console.log(`💾 Enregistrement du mode: ${mode} dans localStorage`);
+        LoggerClient.debug(`💾 Enregistrement du mode: ${mode} dans localStorage`);
         localStorage.setItem('mode-selection', mode);
         modal.classList.add('hidden');
-        console.log(`🚀 Appel initRepartitionApp() pour mode: ${mode}`);
+        LoggerClient.debug(`🚀 Appel initRepartitionApp() pour mode: ${mode}`);
         initRepartitionApp();
       });
     });
-    console.log('  ✅ Event listeners attachés à tous les boutons [data-mode]');
+    LoggerClient.info('  ✅ Event listeners attachés à tous les boutons [data-mode]');
   } else {
     console.error('  ❌ ERREUR: Modal introuvable! Les event listeners ne peuvent pas être attachés.');
   }
 
   if(btnRestore) {
     btnRestore.addEventListener('click', () => {
-        console.log('🖱️ CLIC sur btnRestoreCache');
+        LoggerClient.debug('🖱️ CLIC sur btnRestoreCache');
         restoreCache();
         modal.classList.add('hidden');
     });
-    console.log('  ✅ Event listener attaché: btnRestore');
+    LoggerClient.info('  ✅ Event listener attaché: btnRestore');
   }
 
-  console.log('✅ AUDIT: Attachement des event listeners terminé');
+  LoggerClient.info('✅ AUDIT: Attachement des event listeners terminé');
   
   // Branche les écouteurs d'événements principaux
   setupEventListeners(); 
@@ -5937,7 +5933,7 @@ function updateNewMetrics() {
   const metricsReady = document.getElementById('totalStudentsMetric');
   if (!metricsReady) return; // panneau pas encore injecté
   
-  console.log('🔢 Recalcul metrics - début');
+  LoggerClient.debug('🔢 Recalcul metrics - début');
   
   // Total élèves (uniquement dans les vraies classes)
   let totalStudents = 0;
@@ -5958,12 +5954,12 @@ function updateNewMetrics() {
     });
   });
   
-  console.log('🔢 Recalcul metrics', {totalStudents, filles, totalClasses});
+  LoggerClient.debug('🔢 Recalcul metrics', {totalStudents, filles, totalClasses});
   
   const totalElement = document.getElementById('totalStudentsMetric');
   if (totalElement) {
     totalElement.textContent = totalStudents;
-    console.log('🔢 totalStudentsMetric mis à jour:', totalStudents);
+    LoggerClient.debug('🔢 totalStudentsMetric mis à jour:', totalStudents);
   } else {
     console.warn('❓ métrique manquante dans le DOM : totalStudentsMetric');
   }
@@ -5973,7 +5969,7 @@ function updateNewMetrics() {
   const ratioElement = document.getElementById('genderBalanceMetric');
   if (ratioElement) {
     ratioElement.textContent = `${ratio}% F`;
-    console.log('🔢 genderBalanceMetric mis à jour:', `${ratio}% F`);
+    LoggerClient.debug('🔢 genderBalanceMetric mis à jour:', `${ratio}% F`);
   } else {
     console.warn('❓ métrique manquante dans le DOM : genderBalanceMetric');
   }
@@ -5983,7 +5979,7 @@ function updateNewMetrics() {
   const avgElement = document.getElementById('avgClassSizeMetric');
   if (avgElement) {
     avgElement.textContent = avgClass;
-    console.log('🔢 avgClassSizeMetric mis à jour:', avgClass);
+    LoggerClient.debug('🔢 avgClassSizeMetric mis à jour:', avgClass);
   } else {
     console.warn('❓ métrique manquante dans le DOM : avgClassSizeMetric');
   }
@@ -5992,12 +5988,12 @@ function updateNewMetrics() {
   const conformityElement = document.getElementById('conformityScoreMetric');
   if (conformityElement) {
     conformityElement.textContent = '✅ OK';
-    console.log('🔢 conformityScoreMetric mis à jour: ✅ OK');
+    LoggerClient.info('🔢 conformityScoreMetric mis à jour: ✅ OK');
   } else {
     console.warn('❓ métrique manquante dans le DOM : conformityScoreMetric');
   }
   
-  console.log('🔢 Recalcul metrics - terminé');
+  LoggerClient.debug('🔢 Recalcul metrics - terminé');
 }
 
 function updateLV2Details() {
@@ -6284,7 +6280,7 @@ function loadUserPreferences() {
       if (prefs.darkMode) {
         delete prefs.darkMode;
         localStorage.setItem('userPreferences', JSON.stringify(prefs));
-        console.log('🌞 Mode sombre nettoyé du localStorage (désactivé par défaut)');
+        LoggerClient.debug('🌞 Mode sombre nettoyé du localStorage (désactivé par défaut)');
       }
       
       if (prefs.lastFilter && prefs.lastFilter !== 'all') { setTimeout(() => applyQuickFilter(prefs.lastFilter), 1000); }
@@ -6582,7 +6578,7 @@ window.saveImmediateCache = async function() {
         const result = await gsRun('saveCacheData', cacheData);
         
         if (result && result.success) {
-          console.log('💾 Sauvegarde automatique CACHE réussie');
+          LoggerClient.debug('💾 Sauvegarde automatique CACHE réussie');
           
           // 2. Après succès → reset flag + horodatage + badge
           STATE.has_user_action = false;
@@ -6704,7 +6700,7 @@ window.sortColumn = function(classe, sortType, direction = 'asc') {
   toast(`Classe ${classe} triée par ${sortType}`, 'info');
 };
 
-console.log('✅ Patch de corrections appliqué');
+LoggerClient.info('✅ Patch de corrections appliqué');
 
 // ========== MODULE DE GROUPES V2 - INTERFACE CLARIFIÉE ==========
 
@@ -6843,20 +6839,20 @@ function updateGroupsButton() {
 function notifyGroupsChanged() {
   updateGroupsButton();
   // Autres actions à effectuer quand les groupes changent
-  console.log('📊 Groupes mis à jour');
+  LoggerClient.info('📊 Groupes mis à jour');
 }
 
 // ========== CODE À AJOUTER/MODIFIER DANS INTERFACEV2.HTML ==========
 
 // 1. Fonction unifiée openGroupsInterface - utilise le nouveau GroupsModuleComplete (modal intégrée)
 function openGroupsInterface(tab = 'creator') {
-  console.log('🚀 Ouverture de l\'interface des groupes via GroupsModuleComplete...');
+  LoggerClient.debug('🚀 Ouverture de l\'interface des groupes via GroupsModuleComplete...');
 
   // Vérifier si GroupsModuleComplete est disponible (groupsModuleComplete.html)
   if (typeof window !== 'undefined' && window.GroupsModuleComplete && typeof window.GroupsModuleComplete.open === 'function') {
     try {
       window.GroupsModuleComplete.open();
-      console.log('✅ GroupsModuleComplete ouvert avec succès');
+      LoggerClient.info('✅ GroupsModuleComplete ouvert avec succès');
       return;
     } catch (error) {
       console.error('❌ Erreur lors de l\'ouverture de GroupsModuleComplete:', error);
@@ -6885,7 +6881,7 @@ function openGroupsInterface(tab = 'creator') {
             if (groupsWindow.GroupsUI && typeof groupsWindow.GroupsUI.switchTab === 'function') {
               clearInterval(checkInterval);
               groupsWindow.GroupsUI.switchTab(tab);
-              console.log('✅ Interface des groupes popup ouverte avec succès');
+              LoggerClient.info('✅ Interface des groupes popup ouverte avec succès');
             }
           } catch (uiError) {
             clearInterval(checkInterval);
@@ -6907,7 +6903,7 @@ function openGroupsInterface(tab = 'creator') {
 
 // 2. Fonction pour notifier les changements de groupes
 window.notifyGroupsChanged = function() {
-  console.log('📢 Notification de changement de groupes reçue');
+  LoggerClient.debug('📢 Notification de changement de groupes reçue');
   updateGroupsButton();
   
   // Afficher un message de confirmation
@@ -6918,7 +6914,7 @@ window.notifyGroupsChanged = function() {
 
 // 3. Fonction d'export améliorée
 function exportGroupsData() {
-  console.log('📤 Export des groupes...');
+  LoggerClient.debug('📤 Export des groupes...');
   
   google.script.run
     .withSuccessHandler(function(groupsData) {
@@ -8717,7 +8713,7 @@ const HistoryManager = {
   restoreState(state) {
     // Cette fonction restaurerait l'état précédent
     // Implémentation complexe qui nécessiterait de modifier l'interface
-    console.log('Restauration de l\'état:', state);
+    LoggerClient.debug('Restauration de l\'état:', state);
   }
 };
 
@@ -8781,7 +8777,7 @@ function configureAdvancedFeaturesButtons() {
           // Initialiser le contenu seulement si pas encore fait
           const statsContent = document.getElementById('statsContent');
           if (!statsContent.innerHTML.trim()) {
-            console.log('📊 Première ouverture - initialisation du contenu');
+            LoggerClient.info('📊 Première ouverture - initialisation du contenu');
             if (typeof initCharts === 'function') {
               initCharts();
             }
@@ -8829,7 +8825,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Mettre à jour aria-expanded
       const btnStats = document.getElementById('btnStats');
       if (btnStats) btnStats.setAttribute('aria-expanded', 'false');
-      console.log('📊 Panneau des statistiques fermé manuellement');
+      LoggerClient.info('📊 Panneau des statistiques fermé manuellement');
     });
   }
 
@@ -8869,7 +8865,7 @@ window.initializeGroupsAfterModal = function() {
   }
 };
 
-console.log('✅ Module de groupes et améliorations V2 appliqués');
+LoggerClient.info('✅ Module de groupes et améliorations V2 appliqués');
 
 // ========== PATCH CORRECTIF POUR STATISTIQUES FLUIDES ==========
 // (ANCIENNE VERSION SUPPRIMÉE - REMPLACÉE PAR LA VERSION PROTÉGÉE)
@@ -9006,14 +9002,14 @@ document.addEventListener('DOMContentLoaded', () => {
     darkModeToggle.addEventListener('click', () => {
       toggleDarkMode();
     });
-    console.log('✅ Toggle mode sombre flottant attaché');
+    LoggerClient.info('✅ Toggle mode sombre flottant attaché');
   }
   
   // Optimiser le rendu initial
   setTimeout(optimizeCardRendering, 1000);
 });
 
-console.log('✅ Patch de fluidité des statistiques appliqué');
+LoggerClient.info('✅ Patch de fluidité des statistiques appliqué');
 
 // ========== CORRECTIONS FINALES SUPPLÉMENTAIRES ==========
 
@@ -9068,19 +9064,19 @@ window.EventManager = {
 window.addEventListener('DOMContentLoaded', () => {
   // Éviter les initialisations multiples
   if (window._initialized) {
-    console.log('⚠️ Application déjà initialisée, skip');
+    LoggerClient.warn('⚠️ Application déjà initialisée, skip');
     return;
   }
   window._initialized = true;
 
-  console.log('🚀 Initialisation unique de l\'application (DOMContentLoaded #2)');
+  LoggerClient.debug('🚀 Initialisation unique de l\'application (DOMContentLoaded #2)');
 
-  console.log('⚠️ EventManager.clear() DÉSACTIVÉ pour préserver les event listeners du modal');
+  LoggerClient.warn('⚠️ EventManager.clear() DÉSACTIVÉ pour préserver les event listeners du modal');
 
   // Attendre que tout soit chargé
   setTimeout(() => {
     if (typeof initRepartitionApp === 'function') {
-      console.log('🚀 Appel automatique de initRepartitionApp()');
+      LoggerClient.debug('🚀 Appel automatique de initRepartitionApp()');
       initRepartitionApp();
     }
   }, 100);

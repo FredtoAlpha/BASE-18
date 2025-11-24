@@ -584,7 +584,7 @@
 // INITIALISATION
 // ===================================================================
 document.addEventListener('DOMContentLoaded', function() {
-  console.log("🚀 Initialisation de l'interface...");
+  LoggerClient.debug("🚀 Initialisation de l'interface...");
   
   // Charger la configuration
   chargerConfiguration();
@@ -647,18 +647,18 @@ document.addEventListener('DOMContentLoaded', function() {
     configData.general.toleranceParite = parseInt(this.value) || 2;
   });
   
-  console.log("✅ Initialisation terminée");
+  LoggerClient.info("✅ Initialisation terminée");
 });
 
 // ===================================================================
 // CHARGEMENT DES DONNÉES
 // ===================================================================
 function chargerConfiguration() {
-  console.log("📡 Chargement de la configuration...");
+  LoggerClient.debug("📡 Chargement de la configuration...");
   
   google.script.run
     .withSuccessHandler(function(data) {
-      console.log("📦 Données reçues du serveur:", data);
+      LoggerClient.debug("📦 Données reçues du serveur:", data);
       
       // Charger les paramètres généraux
       if (data.general) {
@@ -685,10 +685,10 @@ function chargerConfiguration() {
       // Charger les options personnalisées
       if (data && data.optionsPersonnalisees && data.optionsPersonnalisees.length > 0) {
         configData.options = data.optionsPersonnalisees;
-        console.log("✅ Options personnalisées chargées:", configData.options);
+        LoggerClient.info("✅ Options personnalisées chargées:", configData.options);
       } else if (data && data.options && data.options.length > 0) {
         configData.options = data.options;
-        console.log("✅ Options standards chargées:", configData.options);
+        LoggerClient.info("✅ Options standards chargées:", configData.options);
       } else {
         configData.options = [];
         console.warn("⚠️ Aucune option trouvée");
@@ -710,11 +710,11 @@ function chargerConfiguration() {
       }
       
       // Afficher toutes les sections
-      console.log("🎨 Affichage de l'interface...");
+      LoggerClient.debug("🎨 Affichage de l'interface...");
       afficherClasses();
       afficherOptionsDisponibles();
       afficherScenarios();
-      console.log("✅ Interface prête !");
+      LoggerClient.info("✅ Interface prête !");
     })
     .withFailureHandler(function(error) {
       console.error("❌ Erreur lors du chargement:", error);
@@ -727,7 +727,7 @@ function chargerConfiguration() {
 // REMPLACER LA FONCTION afficherClasses() PAR CELLE-CI
 // ===================================================================
 function afficherClasses() {
-  console.log("🏫 Affichage des classes...");
+  LoggerClient.debug("🏫 Affichage des classes...");
   const container = document.getElementById('classes-container');
   container.innerHTML = '';
   
@@ -824,7 +824,7 @@ function afficherClasses() {
   });
   
   calculerTotalEffectifs();
-  console.log("✅ Classes affichées");
+  LoggerClient.info("✅ Classes affichées");
 }
 
 // ===================================================================
@@ -835,7 +835,7 @@ function afficherClasses() {
  * ✅ Génération LV2 - 100% ADAPTATIVE
  */
 function genererOptionsLV2HTML(lv2Selectionnee) {
-  console.log("🌍 Génération LV2 avec options:", configData.options);
+  LoggerClient.debug("🌍 Génération LV2 avec options:", configData.options);
   
   // Utiliser TOUTES les options disponibles - 100% ADAPTATIF
   const toutesOptions = configData.options || [];
@@ -886,7 +886,7 @@ function genererOptionsComplementairesHTML(optionsComplementaires, classeIndex) 
  * ✅ Select Options Complémentaires - 100% ADAPTATIF (PLUS DE CODAGE EN DUR !)
  */
 function genererOptionsComplementairesSelectHTML(optionSelectionnee) {
-  console.log("📋 Génération select complémentaire avec options:", configData.options);
+  LoggerClient.debug("📋 Génération select complémentaire avec options:", configData.options);
   
   // ✅ UTILISER TOUTES LES OPTIONS - 100% ADAPTATIF (PLUS de ['CHAV', 'GREC', 'LLCA'] codé en dur !)
   const toutesOptions = configData.options || [];
@@ -914,11 +914,11 @@ function updateClasseLV2(classeIndex, lv2) {
     quotaInput.disabled = !lv2;
     if (!lv2) quotaInput.value = 0;
   }
-  console.log(`Classe ${classeIndex}: LV2 = ${lv2}`);
+  LoggerClient.debug(`Classe ${classeIndex}: LV2 = ${lv2}`);
 }
 
 function updateQuotaLV2(classeIndex, quota) {
-  console.log(`Classe ${classeIndex}: Quota LV2 = ${quota}`);
+  LoggerClient.debug(`Classe ${classeIndex}: Quota LV2 = ${quota}`);
 }
 
 function ajouterOptionComplementaire(classeIndex) {
@@ -960,7 +960,7 @@ function ajouterOptionComplementaire(classeIndex) {
 }
 
 function updateOptionComplementaire(classeIndex, optIndex, propriete, valeur) {
-  console.log(`Classe ${classeIndex}, Option ${optIndex}: ${propriete} = ${valeur}`);
+  LoggerClient.debug(`Classe ${classeIndex}, Option ${optIndex}: ${propriete} = ${valeur}`);
 }
 
 function supprimerOptionComplementaire(classeIndex, optIndex) {
@@ -982,7 +982,7 @@ function supprimerOptionComplementaire(classeIndex, optIndex) {
 // AFFICHAGE DES OPTIONS DISPONIBLES (100% ADAPTATIF)
 // ===================================================================
 function afficherOptionsDisponibles() {
-  console.log("🎯 Affichage options disponibles...");
+  LoggerClient.info("🎯 Affichage options disponibles...");
   const container = document.getElementById('options-disponibles-container');
   container.innerHTML = '';
   
@@ -1034,14 +1034,14 @@ function afficherOptionsDisponibles() {
   `;
   container.appendChild(noteDiv);
   
-  console.log("✅ Options disponibles affichées");
+  LoggerClient.info("✅ Options disponibles affichées");
 }
 
 // ===================================================================
 // GESTION DES OPTIONS (100% ADAPTATIF)
 // ===================================================================
 function ajouterOptionDisponibleEtRafraichir() {
-  console.log("➕ Ajout d'une nouvelle option...");
+  LoggerClient.debug("➕ Ajout d'une nouvelle option...");
   
   const nouvelleOption = prompt("Nom de la nouvelle option (ex: SPORT, LATIN, ITA, etc.):");
   if (!nouvelleOption || !nouvelleOption.trim()) return;
@@ -1058,7 +1058,7 @@ function ajouterOptionDisponibleEtRafraichir() {
   if (!configData.options) configData.options = [];
   configData.options.push(optionNormalisee);
   
-  console.log(`✅ Option "${optionNormalisee}" ajoutée`);
+  LoggerClient.info(`✅ Option "${optionNormalisee}" ajoutée`);
   
   // Rafraîchir IMMÉDIATEMENT toute l'interface
   afficherOptionsDisponibles();
@@ -1078,7 +1078,7 @@ function updateOptionDisponibleEtRafraichir(index, valeur) {
       rafraichirOptionsInterface();
     }, 300);
     
-    console.log(`✏️ Option ${index} mise à jour: ${valeurNormalisee}`);
+    LoggerClient.debug(`✏️ Option ${index} mise à jour: ${valeurNormalisee}`);
   }
 }
 
@@ -1094,7 +1094,7 @@ function supprimerOptionDisponibleEtRafraichir(index) {
   // Supprimer l'option
   configData.options.splice(index, 1);
   
-  console.log(`🗑️ Option "${optionASupprimer}" supprimée`);
+  LoggerClient.debug(`🗑️ Option "${optionASupprimer}" supprimée`);
   
   // Rafraîchir toute l'interface
   afficherOptionsDisponibles();
@@ -1104,13 +1104,13 @@ function supprimerOptionDisponibleEtRafraichir(index) {
 }
 
 function rafraichirOptionsInterface() {
-  console.log("🔄 Rafraîchissement de l'interface...");
+  LoggerClient.debug("🔄 Rafraîchissement de l'interface...");
   
   // Rafraîchir toutes les classes affichées
   afficherClasses();
   
   const nbOptions = configData.options ? configData.options.length : 0;
-  console.log(`✅ Interface mise à jour avec ${nbOptions} options : [${configData.options.join(', ')}]`);
+  LoggerClient.info(`✅ Interface mise à jour avec ${nbOptions} options : [${configData.options.join(', ')}]`);
 }
 
 // ===================================================================
@@ -1366,7 +1366,7 @@ function updatePonderation(scenarioId, index, critere, valeur) {
 // REMPLACER la fonction enregistrerConfiguration() par celle-ci
 // ===================================================================
 function enregistrerConfiguration() {
-  console.log("💾 Enregistrement de la configuration...");
+  LoggerClient.debug("💾 Enregistrement de la configuration...");
   
   const btnEnregistrer = document.getElementById('btn-enregistrer');
   btnEnregistrer.disabled = true;
@@ -1385,7 +1385,7 @@ function enregistrerConfiguration() {
       options: []
     };
     
-    console.log(`🔍 Analyse classe ${index + 1}: ${classe.origine} → ${classe.destination}`);
+    LoggerClient.debug(`🔍 Analyse classe ${index + 1}: ${classe.origine} → ${classe.destination}`);
     
     // 1️⃣ RÉCUPÉRER LA LV2 DEPUIS L'INTERFACE
     const lv2Select = document.querySelector(`[onchange*="updateClasseLV2(${index}"]`);
@@ -1396,7 +1396,7 @@ function enregistrerConfiguration() {
         nom: lv2Select.value,
         quota: parseInt(quotaLV2Input.value)
       });
-      console.log(`  🌍 LV2: ${lv2Select.value} (${quotaLV2Input.value})`);
+      LoggerClient.debug(`  🌍 LV2: ${lv2Select.value} (${quotaLV2Input.value})`);
     }
     
     // 2️⃣ RÉCUPÉRER LES OPTIONS COMPLÉMENTAIRES DEPUIS L'INTERFACE
@@ -1411,12 +1411,12 @@ function enregistrerConfiguration() {
             nom: selects[i].value,
             quota: parseInt(inputs[i].value)
           });
-          console.log(`  📚 Option: ${selects[i].value} (${inputs[i].value})`);
+          LoggerClient.debug(`  📚 Option: ${selects[i].value} (${inputs[i].value})`);
         }
       }
     }
     
-    console.log(`  ✅ Total options pour classe ${index + 1}: ${classeData.options.length}`);
+    LoggerClient.info(`  ✅ Total options pour classe ${index + 1}: ${classeData.options.length}`);
     classesAvecOptions.push(classeData);
   });
   
@@ -1441,15 +1441,15 @@ function enregistrerConfiguration() {
     structureData.ponderation = scenarioActif.ponderation;
   }
   
-  console.log("📤 Données à sauvegarder:", structureData);
-  console.log(`📊 Nombre total d'options: ${structureData.classes.reduce((total, classe) => total + classe.options.length, 0)}`);
+  LoggerClient.debug("📤 Données à sauvegarder:", structureData);
+  LoggerClient.info(`📊 Nombre total d'options: ${structureData.classes.reduce((total, classe) => total + classe.options.length, 0)}`);
   
   // ===================================================================
   // 💾 SAUVEGARDE
   // ===================================================================
   google.script.run
     .withSuccessHandler(function(result) {
-      console.log("✅ Sauvegarde réussie");
+      LoggerClient.info("✅ Sauvegarde réussie");
       alert(result.message || 'Configuration sauvegardée avec succès');
       google.script.host.close();
     })
@@ -1470,17 +1470,17 @@ function fermerConfiguration() {
 }
 
 function debuggerOptions() {
-  console.log("🔍 === DEBUG OPTIONS ===");
-  console.log("configData.options:", configData.options);
-  console.log("Type:", typeof configData.options);
-  console.log("Length:", configData.options ? configData.options.length : "undefined");
+  LoggerClient.debug("🔍 === DEBUG OPTIONS ===");
+  LoggerClient.debug("configData.options:", configData.options);
+  LoggerClient.debug("Type:", typeof configData.options);
+  LoggerClient.debug("Length:", configData.options ? configData.options.length : "undefined");
   
   google.script.run
     .withSuccessHandler(function(result) {
-      console.log("✅ Options reçues du serveur:", result);
+      LoggerClient.info("✅ Options reçues du serveur:", result);
       if (result && result.optionsPersonnalisees) {
         configData.options = result.optionsPersonnalisees;
-        console.log("Options mises à jour:", configData.options);
+        LoggerClient.debug("Options mises à jour:", configData.options);
         afficherOptionsDisponibles();
         afficherClasses();
       }
