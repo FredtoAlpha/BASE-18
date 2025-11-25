@@ -27,7 +27,8 @@
 // ===================================================================
 
 var Logger = (function() {
-  'use strict';
+  // NOTE: 'use strict' retiré car incompatible avec exports globaux Apps Script
+  // En mode strict, this = undefined dans scope global, empêchant this.Logger = Logger
 
   // Niveaux de log (plus bas = plus verbeux)
   var LEVELS = {
@@ -442,8 +443,6 @@ function logLine(level, message) {
 // ===================================================================
 
 // Global export (Apps Script)
-// NOTE: En mode strict, 'this' est undefined dans le scope global.
-// Les déclarations 'var Logger' et 'function logLine' suffisent pour
-// les rendre accessibles globalement dans Apps Script.
-// this.Logger = Logger;  // ❌ Ne fonctionne pas en mode strict
-// this.logLine = logLine; // ❌ Ne fonctionne pas en mode strict
+// Sans 'use strict', this pointe vers le scope global dans Apps Script
+this.Logger = Logger;
+this.logLine = logLine;
