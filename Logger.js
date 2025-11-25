@@ -442,5 +442,8 @@ function logLine(level, message) {
 // ===================================================================
 
 // Global export (Apps Script)
-this.Logger = Logger;
-this.logLine = logLine;
+// NOTE: En mode strict, 'this' est undefined dans le scope global.
+// Les déclarations 'var Logger' et 'function logLine' suffisent pour
+// les rendre accessibles globalement dans Apps Script.
+// this.Logger = Logger;  // ❌ Ne fonctionne pas en mode strict
+// this.logLine = logLine; // ❌ Ne fonctionne pas en mode strict
