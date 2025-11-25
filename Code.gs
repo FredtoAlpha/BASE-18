@@ -917,8 +917,8 @@ function getUiSettings() {
  */
 function getAdminPasswordFromConfig(ss = null) {
   try {
-    const ss = getActiveSpreadsheetCached();
-    const configSheet = ss.getSheetByName('_CONFIG');
+    const spreadsheet = ss || getActiveSpreadsheetCached(); // ✅ Ne pas redéfinir le paramètre
+    const configSheet = spreadsheet.getSheetByName('_CONFIG');
 
     if (!configSheet) {
       Logger.log('⚠️ Onglet _CONFIG introuvable');
