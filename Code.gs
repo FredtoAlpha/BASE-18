@@ -911,7 +911,7 @@ function getUiSettings() {
 }
 
 /**
- * Récupère le mot de passe admin depuis _CONFIG B3
+ * Récupère le mot de passe admin depuis _CONFIG B2
  * @param {Spreadsheet} ss - Instance du spreadsheet (optionnel)
  * @returns {string} Mot de passe admin
  */
@@ -925,11 +925,11 @@ function getAdminPasswordFromConfig(ss = null) {
       return '';
     }
 
-    const password = configSheet.getRange('B3').getValue();
+    const password = configSheet.getRange('B2').getValue(); // ✅ Corrigé: B2 au lieu de B3
     const trimmedPassword = toTrimmedString(password);
 
     // 🔍 Debug: Logger le mot de passe récupéré (longueur pour sécurité)
-    Logger.log(`🔐 Mot de passe admin récupéré depuis _CONFIG B3 (longueur: ${trimmedPassword.length})`);
+    Logger.log(`🔐 Mot de passe admin récupéré depuis _CONFIG B2 (longueur: ${trimmedPassword.length})`);
 
     return trimmedPassword; // ✅ Utilisation fonction utilitaire
   } catch (e) {
