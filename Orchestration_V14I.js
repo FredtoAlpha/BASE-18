@@ -165,30 +165,17 @@ function makeCtxFromSourceSheets_() {
 // 0. UTILITAIRES DE GESTION DES ONGLETS
 // ===================================================================
 
-/**
- * Toujours suffixer (ex: '6°1' + 'CACHE' -> '6°1CACHE'). Jamais de préfixe.
- */
-function buildSheetName_(niveau, suffix) {
-  const base = String(niveau || '').trim();
-  const sfx = String(suffix || '').trim();
-  if (!base) throw new Error('buildSheetName_: niveau vide');
-  if (!sfx) throw new Error('buildSheetName_: suffix vide');
-  return base + sfx;
-}
-
-/**
- * Liste des feuilles sources/targets à partir des niveaux et d'un suffixe.
- */
-function makeSheetsList_(niveaux, suffix) {
-  return (niveaux || []).map(function(niv) { return buildSheetName_(niv, suffix); });
-}
-
-/**
- * getActive() unique point d'entrée pour éviter d'écrire dans le mauvais classeur.
- */
-function getActiveSS_() {
-  return SpreadsheetApp.getActive();
-}
+// ===================================================================
+// ✅ FONCTIONS DÉPLACÉES DANS APP.CORE.JS (Phase 5 - Refactoring)
+// ===================================================================
+// Les fonctions suivantes ont été extraites vers App.Core.js :
+// - buildSheetName_(niveau, suffix)
+// - makeSheetsList_(niveaux, suffix)
+// - getActiveSS_()
+//
+// Ces fonctions sont automatiquement disponibles car Google Apps Script
+// charge tous les fichiers .js dans le scope global.
+// ===================================================================
 
 /**
  * Obtient ou crée un onglet
@@ -375,19 +362,12 @@ function runOptimizationV14FullI(options) {
   }
 }
 
-/**
- * Marque une phase avec son nom
- */
-function tagPhase_(name, res) {
-  return { name, ...res };
-}
-
-/**
- * Collecte tous les warnings de toutes les phases
- */
-function collectWarnings_(phases) {
-  return phases.flatMap(p => p.warnings || []);
-}
+// ===================================================================
+// ✅ FONCTIONS DÉPLACÉES DANS APP.CORE.JS (Phase 5 - Refactoring)
+// ===================================================================
+// - tagPhase_(name, res)
+// - collectWarnings_(phases)
+// ===================================================================
 
 // ===================================================================
 // 2. CONSTRUCTION DU CONTEXTE DEPUIS L'INTERFACE
