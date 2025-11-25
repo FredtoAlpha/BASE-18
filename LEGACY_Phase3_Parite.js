@@ -41,7 +41,8 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
   const idxNom = headersRef.indexOf('NOM');
   const idxLV2 = headersRef.indexOf('LV2');
   const idxOPT = headersRef.indexOf('OPT');
-  
+  const idxASSO = headersRef.indexOf('ASSO'); // ✅ Ajout pour protéger groupes ASSO
+
   // 🌟 APPROCHE UNIVERSELLE : Détecter LV2 universelles
   const allClasses = ctx.niveaux || [];
   const nbClasses = allClasses.length;
@@ -114,7 +115,14 @@ function Phase3I_completeAndParity_LEGACY(ctx) {
         // Vérifier si élève peut être déplacé (a ESP, pas d'option spéciale)
         const lv2 = String(item.row[idxLV2] || '').trim().toUpperCase();
         const opt = String(item.row[idxOPT] || '').trim().toUpperCase();
-        
+
+        // ✅ PROTECTION GROUPES ASSO : Ne pas déplacer élèves avec code ASSO
+        const asso = String(item.row[idxASSO] || '').trim().toUpperCase();
+        if (asso) {
+          // Élève fait partie d'un groupe ASSO, on ne le déplace pas
+          continue;
+        }
+
         // Chercher classe sous-chargée compatible
         for (let u = 0; u < underloaded.length && !movedStudent; u++) {
           const under = underloaded[u];
@@ -422,7 +430,8 @@ function canSwapForParity_Phase3(studentIdx, targetClass, allData, headers, ctx)
   const idxFIXE = headers.indexOf('FIXE');
   const idxMOBILITE = headers.indexOf('MOBILITE');
   const idxDISSO = headers.indexOf('DISSO');
-  
+  const idxASSO = headers.indexOf('ASSO'); // ✅ Protection groupes ASSO
+
   // 1. Vérifier si élève est FIXE
   const fixe = String(row[idxFIXE] || '').toUpperCase();
   const mobilite = String(row[idxMOBILITE] || '').toUpperCase();
@@ -430,7 +439,13 @@ function canSwapForParity_Phase3(studentIdx, targetClass, allData, headers, ctx)
   if (fixe.includes('FIXE') || fixe.includes('OUI') || mobilite.includes('FIXE')) {
     return false; // Élève FIXE ne peut pas être swappé
   }
-  
+
+  // 1.5 ✅ Vérifier si élève fait partie d'un groupe ASSO
+  const asso = String(row[idxASSO] || '').trim().toUpperCase();
+  if (asso) {
+    return false; // Élève ASSO ne peut pas être swappé individuellement
+  }
+
   // 2. Vérifier compatibilité LV2/OPT avec la classe cible
   const lv2 = String(row[idxLV2] || '').trim().toUpperCase();
   const opt = String(row[idxOPT] || '').trim().toUpperCase();

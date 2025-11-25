@@ -400,11 +400,11 @@ try {
   if (env === 'production') {
     Logger.enableProduction();
   } else {
-    Logger.enableDevelopment();
+    Logger.enableProduction(); // Mode PRODUCTION par défaut (moins verbeux)
   }
 } catch (e) {
-  // Fallback: mode development par défaut
-  Logger.enableDevelopment();
+  // Fallback: mode production par défaut (moins verbeux)
+  Logger.enableProduction();
 }
 
 // ===================================================================
