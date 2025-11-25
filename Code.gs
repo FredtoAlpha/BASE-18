@@ -677,7 +677,7 @@ function getClassesDataForInterfaceV2(mode = 'TEST') {
     Logger.log(`❌ Erreur getClassesDataForInterfaceV2: ${e.message}`);
     return {
       success: false,
-      error: errorMessage,
+      error: e.message,
       details: e.toString(),
       data: []
     };
@@ -831,7 +831,7 @@ function saveDispositionToSheets(disposition, ss = null) {
     Logger.log(`❌ Erreur critique saveDispositionToSheets: ${e.message}`);
     return {
       success: false,
-      error: errorMessage,
+      error: e.message,
       details: e.toString()
     };
   }
