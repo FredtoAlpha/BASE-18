@@ -311,6 +311,14 @@ var Logger = (function() {
       log(LEVELS.ERROR, message, data, error);
     },
 
+    /**
+     * Méthode log() pour compatibilité avec Logger natif Apps Script
+     * Alias vers info() pour maintenir la compatibilité du code existant
+     */
+    log: function(message, data, error) {
+      log(LEVELS.INFO, message, data, error);
+    },
+
     // Configuration
     setLevel: function(level) {
       if (typeof level === 'number' && level >= 0 && level <= 4) {
