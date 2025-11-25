@@ -277,6 +277,19 @@ function deverrouillerStructure() {
 }
 
 /**
+ * Wrapper pour appeler le pipeline LEGACY PRIME
+ * Fonction de compatibilité pour ConsolePilotageV3_Server.gs
+ * @returns {Object} Résultat du pipeline
+ */
+function legacy_runFullPipeline() {
+  if (typeof legacy_runFullPipeline_PRIME === 'function') {
+    return legacy_runFullPipeline_PRIME();
+  }
+  SpreadsheetApp.getUi().alert("❌ Erreur : Moteur LEGACY introuvable.");
+  return { success: false, error: 'LEGACY_Pipeline.gs not found' };
+}
+
+/**
  * Affiche les classes sources (fonction legacy)
  * Recherche les onglets avec le pattern "Classe°Numéro" (ex: "5°1")
  * @deprecated Fonction de compatibilité
