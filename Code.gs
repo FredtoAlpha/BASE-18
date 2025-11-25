@@ -66,6 +66,17 @@ const SHEET_PATTERNS = {
 // ==================== UTILITAIRES ====================
 
 /**
+ * Convertit une valeur en string et la trim
+ * Gère les valeurs null, undefined, et les types non-string
+ * @param {*} value - Valeur à convertir
+ * @returns {string} String trimmé
+ */
+function toTrimmedString(value) {
+  if (value === null || value === undefined) return '';
+  return String(value).trim();
+}
+
+/**
  * Cache pour le Spreadsheet actif (optimisation performance)
  * @private
  */
@@ -677,7 +688,7 @@ function getClassesDataForInterfaceV2(mode = 'TEST') {
     Logger.log(`❌ Erreur getClassesDataForInterfaceV2: ${e.message}`);
     return {
       success: false,
-      error: errorMessage,
+      error: e.message,
       details: e.toString(),
       data: []
     };
@@ -831,7 +842,7 @@ function saveDispositionToSheets(disposition, ss = null) {
     Logger.log(`❌ Erreur critique saveDispositionToSheets: ${e.message}`);
     return {
       success: false,
-      error: errorMessage,
+      error: e.message,
       details: e.toString()
     };
   }
