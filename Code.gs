@@ -926,7 +926,12 @@ function getAdminPasswordFromConfig(ss = null) {
     }
 
     const password = configSheet.getRange('B3').getValue();
-    return toTrimmedString(password); // ✅ Utilisation fonction utilitaire
+    const trimmedPassword = toTrimmedString(password);
+
+    // 🔍 Debug: Logger le mot de passe récupéré (longueur pour sécurité)
+    Logger.log(`🔐 Mot de passe admin récupéré depuis _CONFIG B3 (longueur: ${trimmedPassword.length})`);
+
+    return trimmedPassword; // ✅ Utilisation fonction utilitaire
   } catch (e) {
     Logger.log(`❌ Erreur getAdminPasswordFromConfig: ${e.message}`);
     return '';
@@ -948,10 +953,15 @@ function verifierMotDePasseAdmin(password) {
     const adminPassword = getAdminPasswordFromConfig();
 
     if (!adminPassword) {
+      Logger.log('⚠️ Mot de passe admin vide ou non configuré');
       return { success: false, error: 'Mot de passe admin non configuré dans _CONFIG' };
     }
 
-    const isValid = String(password).trim() === adminPassword;
+    const inputPassword = String(password).trim();
+    const isValid = inputPassword === adminPassword;
+
+    // 🔍 Debug: Logger la comparaison (longueurs pour sécurité)
+    Logger.log(`🔐 Vérification mot de passe: input(${inputPassword.length}) vs config(${adminPassword.length}) → ${isValid ? '✅ VALIDE' : '❌ INVALIDE'}`);
 
     return { success: isValid };
   } catch (e) {
