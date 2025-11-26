@@ -3685,14 +3685,13 @@ window.addEventListener('DOMContentLoaded', (event) => {
       console.log('✅ AdminMenuFix: Initialisation complète');
     }
 
-    // Appel conditionnel de initAdminMenu() en fonction de l'état du DOM
-    if (document.readyState === 'loading') {
-      console.log('⏳ AdminMenuFix: DOM en cours de chargement, attente DOMContentLoaded');
-      document.addEventListener('DOMContentLoaded', initAdminMenu);
-    } else {
-      console.log('✅ AdminMenuFix: DOM déjà chargé, initialisation immédiate');
+    // Appel différé de initAdminMenu() pour garantir que tous les éléments DOM sont rendus
+    // Utilise setTimeout(0) pour placer l'init à la fin de la queue d'événements
+    console.log('⏳ AdminMenuFix: Attente de la fin du rendu DOM...');
+    setTimeout(() => {
+      console.log('✅ AdminMenuFix: Début initialisation du menu Admin');
       initAdminMenu();
-    }
+    }, 0);
 
   })();
 
