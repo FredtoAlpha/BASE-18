@@ -555,6 +555,97 @@ function getOptimizationProfileFromUI() {
   };
 }
 
+/**
+ * Récupère la configuration d'optimisation pour l'interface UI
+ * Appelé par OptimizationPanel.html au chargement de l'interface
+ *
+ * @returns {Object} { success: true, config: {...} } ou { success: false, error: "..." }
+ */
+function getOptiConfigForUI() {
+  try {
+    logLine('INFO', '📖 getOptiConfigForUI: Récupération configuration pour UI...');
+
+    const ctx = getOptimizationContext_V2();
+
+    const config = {
+      mode: ctx.mode || 'TEST',
+      weights: ctx.weights || {
+        parity: 0.3,
+        com: 0.4,
+        tra: 0.1,
+        part: 0.1,
+        abs: 0.1
+      },
+      parityTolerance: ctx.parityTolerance || 2,
+      maxSwaps: ctx.maxSwaps || 50,
+      runtimeSec: ctx.runtimeSec || 180,
+      offersByClass: ctx.offersByClass || {},
+      targetsByClass: ctx.targetsByClass || {}
+    };
+
+    logLine('INFO', '✅ Configuration UI récupérée avec succès');
+
+    return {
+      success: true,
+      config: config
+    };
+
+  } catch (e) {
+    logLine('ERROR', '❌ Erreur lors de la récupération de la configuration UI: ' + e);
+    return {
+      success: false,
+      error: e.toString()
+    };
+  }
+}
+
+/**
+ * Sauvegarde la configuration d'optimisation depuis l'interface UI
+ * Appelé par OptimizationPanel.html lors de la sauvegarde
+ *
+ * @param {Object} config - Configuration complète depuis l'UI
+ * @returns {Object} { success: true } ou { success: false, error: "..." }
+ */
+function saveOptiConfigFromUI(config) {
+  try {
+    logLine('INFO', '💾 saveOptiConfigFromUI: Sauvegarde configuration depuis UI...');
+
+    // Préparer le payload pour saveOptimizationProfileFromUI
+    const payload = {
+      mode: config.mode || 'TEST',
+      offersByClass: config.quotas || config.offersByClass || {},
+      targetsByClass: config.targetsByClass || {},
+      weights: config.weights || {
+        parity: 0.3,
+        com: 0.4,
+        tra: 0.1,
+        part: 0.1,
+        abs: 0.1
+      },
+      parityTolerance: config.parityTolerance || 2,
+      maxSwaps: config.maxSwaps || 50
+    };
+
+    // Utiliser la fonction existante
+    const result = saveOptimizationProfileFromUI(payload);
+
+    if (result.ok) {
+      logLine('INFO', '✅ Configuration UI sauvegardée avec succès');
+      return { success: true };
+    } else {
+      logLine('ERROR', '❌ Échec de la sauvegarde: ' + result.error);
+      return { success: false, error: result.error };
+    }
+
+  } catch (e) {
+    logLine('ERROR', '❌ Erreur lors de la sauvegarde de la configuration UI: ' + e);
+    return {
+      success: false,
+      error: e.toString()
+    };
+  }
+}
+
 // ===================================================================
 // SECTION 4 : CONSTRUCTION CONTEXTE POUR PHASES (V2)
 // ===================================================================
