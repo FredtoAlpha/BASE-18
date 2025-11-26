@@ -678,7 +678,7 @@ function getClassesDataForInterfaceV2(mode = 'TEST') {
       };
     });
 
-    const rules = loadStructureRules(ss);
+    const rules = loadStructureRules();
 
     return {
       success: true,
