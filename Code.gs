@@ -105,7 +105,7 @@ function safeJSONParse(jsonString, defaultValue = null) {
   try {
     return JSON.parse(jsonString);
   } catch (e) {
-    Logger.log(`⚠️ Erreur JSON.parse: ${e.message} | Input: ${jsonString.substring(0, 100)}...`);
+    console.log(`⚠️ Erreur JSON.parse: ${e.message} | Input: ${jsonString.substring(0, 100)}...`);
     return defaultValue;
   }
 }
@@ -125,7 +125,7 @@ function safeGetUserProperty(key, defaultValue = null) {
 
     return safeJSONParse(value, defaultValue);
   } catch (e) {
-    Logger.log(`❌ Erreur safeGetUserProperty('${key}'): ${e.message}`);
+    console.log(`❌ Erreur safeGetUserProperty('${key}'): ${e.message}`);
     return defaultValue;
   }
 }
@@ -143,7 +143,7 @@ function safeSetUserProperty(key, value) {
     props.setProperty(key, jsonValue);
     return true;
   } catch (e) {
-    Logger.log(`❌ Erreur safeSetUserProperty('${key}'): ${e.message}`);
+    console.log(`❌ Erreur safeSetUserProperty('${key}'): ${e.message}`);
     return false;
   }
 }
@@ -172,7 +172,7 @@ function onOpen() {
     .addItem('🔓 Déverrouiller _STRUCTURE', 'deverrouillerStructure')
     .addToUi();
 
-  Logger.log('✅ Menu V3 Ultimate chargé');
+  console.log('✅ Menu V3 Ultimate chargé');
 }
 
 // ==================== ACCÈS WEB (Interface Profs) ====================
@@ -201,7 +201,7 @@ function include(filename) {
   try {
     return HtmlService.createHtmlOutputFromFile(filename).getContent();
   } catch (e) {
-    Logger.log(`⚠️ Erreur include('${filename}'): ${e.message}`);
+    console.log(`⚠️ Erreur include('${filename}'): ${e.message}`);
     return `<!-- Erreur: fichier ${filename} introuvable -->`;
   }
 }
@@ -465,14 +465,14 @@ function collectClassesDataByMode(mode) {
       const data = sheet.getDataRange().getValues();
       // ✅ Cas limite : onglet vide ou avec seulement les en-têtes
       if (data.length < 2) {
-        Logger.log(`⚠️ Onglet ${sheet.getName()}: pas de données (${data.length} lignes)`);
+        console.log(`⚠️ Onglet ${sheet.getName()}: pas de données (${data.length} lignes)`);
         return;
       }
 
       // ✅ Cas limite : vérification que la première ligne contient des en-têtes
       const headers = data[0];
       if (!Array.isArray(headers) || headers.length === 0) {
-        Logger.log(`⚠️ Onglet ${sheet.getName()}: en-têtes invalides`);
+        console.log(`⚠️ Onglet ${sheet.getName()}: en-têtes invalides`);
         return;
       }
 
@@ -484,7 +484,7 @@ function collectClassesDataByMode(mode) {
         timestamp: new Date().getTime()
       };
     } catch (sheetError) {
-      Logger.log(`❌ Erreur lors de la lecture de ${sheet.getName()}: ${sheetError.toString()}`);
+      console.log(`❌ Erreur lors de la lecture de ${sheet.getName()}: ${sheetError.toString()}`);
     }
   });
 
@@ -507,7 +507,7 @@ function mapStudentsForInterface(headers, rows) {
   return rows.map(row => {
     // ✅ Cas limite : vérification de la ligne
     if (!Array.isArray(row) || row.length === 0) {
-      Logger.log('⚠️ Ligne invalide détectée, ignorée');
+      console.log('⚠️ Ligne invalide détectée, ignorée');
       return null;
     }
 
@@ -629,7 +629,7 @@ function loadStructureRules() {
     const cache = CacheService.getScriptCache();
     cache.put('STRUCTURE_RULES', JSON.stringify(rules), 600);
   } catch (e) {
-    Logger.log('⚠️ Cache write error: ' + e.toString());
+    console.log('⚠️ Cache write error: ' + e.toString());
   }
 
   return rules;
@@ -674,10 +674,10 @@ function getClassesDataForInterfaceV2(mode = 'TEST') {
       timestamp: new Date().getTime()
     };
   } catch (e) {
-    Logger.log(`❌ Erreur getClassesDataForInterfaceV2: ${e.message}`);
+    console.log(`❌ Erreur getClassesDataForInterfaceV2: ${e.message}`);
     return {
       success: false,
-      error: errorMessage,
+      error: e.message,
       details: e.toString(),
       data: []
     };
@@ -719,7 +719,7 @@ function getLastCacheInfo() {
       mode: cache.mode || 'unknown'
     };
   } catch (e) {
-    Logger.log(`❌ Erreur getLastCacheInfo: ${e.message}`);
+    console.log(`❌ Erreur getLastCacheInfo: ${e.message}`);
     return { success: false, error: e.toString() };
   }
 }
@@ -741,7 +741,7 @@ function getBridgeContextAndClear() {
 
     return { success: true, context };
   } catch (e) {
-    Logger.log(`❌ Erreur getBridgeContextAndClear: ${e.message}`);
+    console.log(`❌ Erreur getBridgeContextAndClear: ${e.message}`);
     return { success: false, error: e.toString() };
   }
 }
@@ -794,10 +794,10 @@ function saveDispositionToSheets(disposition, ss = null) {
         let cacheSheet = ss.getSheetByName(cacheSheetName);
         if (!cacheSheet) {
           cacheSheet = ss.insertSheet(cacheSheetName);
-          Logger.log(`✅ Onglet créé: ${cacheSheetName}`);
+          console.log(`✅ Onglet créé: ${cacheSheetName}`);
         } else {
           cacheSheet.clearContents();
-          Logger.log(`🔄 Onglet vidé: ${cacheSheetName}`);
+          console.log(`🔄 Onglet vidé: ${cacheSheetName}`);
         }
 
         // Écrire les données
@@ -811,13 +811,13 @@ function saveDispositionToSheets(disposition, ss = null) {
         failedCount++;
         const errorMsg = `Erreur pour ${className}: ${classError.message}`;
         errors.push(errorMsg);
-        Logger.log(`⚠️ ${errorMsg}`);
+        console.log(`⚠️ ${errorMsg}`);
       }
     }
 
     SpreadsheetApp.flush();
 
-    Logger.log(`💾 Sauvegarde terminée: ${savedCount} succès, ${failedCount} échecs`);
+    console.log(`💾 Sauvegarde terminée: ${savedCount} succès, ${failedCount} échecs`);
 
     return {
       success: failedCount === 0,
@@ -828,7 +828,7 @@ function saveDispositionToSheets(disposition, ss = null) {
     };
 
   } catch (e) {
-    Logger.log(`❌ Erreur critique saveDispositionToSheets: ${e.message}`);
+    console.log(`❌ Erreur critique saveDispositionToSheets: ${e.message}`);
     return {
       success: false,
       error: errorMessage,
@@ -847,7 +847,7 @@ function loadCacheData() {
 
     return { success: true, data };
   } catch (e) {
-    Logger.log(`❌ Erreur loadCacheData: ${e.message}`);
+    console.log(`❌ Erreur loadCacheData: ${e.message}`);
     return { success: false, error: e.toString() };
   }
 }
@@ -910,14 +910,14 @@ function getAdminPasswordFromConfig(ss = null) {
     const configSheet = ss.getSheetByName('_CONFIG');
 
     if (!configSheet) {
-      Logger.log('⚠️ Onglet _CONFIG introuvable');
+      console.log('⚠️ Onglet _CONFIG introuvable');
       return '';
     }
 
     const password = configSheet.getRange('B3').getValue();
     return toTrimmedString(password); // ✅ Utilisation fonction utilitaire
   } catch (e) {
-    Logger.log(`❌ Erreur getAdminPasswordFromConfig: ${e.message}`);
+    console.log(`❌ Erreur getAdminPasswordFromConfig: ${e.message}`);
     return '';
   }
 }
@@ -944,7 +944,7 @@ function verifierMotDePasseAdmin(password) {
 
     return { success: isValid };
   } catch (e) {
-    Logger.log(`❌ Erreur verifierMotDePasseAdmin: ${e.message}`);
+    console.log(`❌ Erreur verifierMotDePasseAdmin: ${e.message}`);
     return { success: false, error: e.toString() };
   }
 }
@@ -991,7 +991,7 @@ function loadFINSheetsWithScores(ss = null) {
 
     return { success: true, data };
   } catch (e) {
-    Logger.log(`❌ Erreur loadFINSheetsWithScores: ${e.message}`);
+    console.log(`❌ Erreur loadFINSheetsWithScores: ${e.message}`);
     return { success: false, error: e.toString() };
   }
 }
@@ -1054,12 +1054,12 @@ function updateStructureRules(newRules, ss = null) {
       const cache = CacheService.getScriptCache();
       cache.remove('STRUCTURE_RULES');
     } catch (e) {
-      Logger.log('⚠️ Cache invalidation error: ' + e.toString());
+      console.log('⚠️ Cache invalidation error: ' + e.toString());
     }
 
     return { success: true };
   } catch (e) {
-    Logger.log(`❌ Erreur updateStructureRules: ${e.message}`);
+    console.log(`❌ Erreur updateStructureRules: ${e.message}`);
     return { success: false, error: e.toString() };
   }
 }
@@ -1105,7 +1105,7 @@ function getINTScores(ss = null) {
 
     return { success: true, scores };
   } catch (e) {
-    Logger.log(`❌ Erreur getINTScores: ${e.message}`);
+    console.log(`❌ Erreur getINTScores: ${e.message}`);
     return { success: false, error: e.toString() };
   }
 }
