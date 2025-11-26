@@ -150,32 +150,87 @@ const OptimizationPanel = {
   /**
    * Ouvrir le panneau d'optimisation
    */
-  open() {
+  async open() {
+    console.log('🎯 Ouverture de l\'assistant d\'optimisation...');
+
+    // ✅ CORRECTION: S'assurer que les données sont chargées AVANT d'ouvrir le panneau
+    const hasData = typeof STATE !== 'undefined' && STATE.students && Object.keys(STATE.students).length > 0;
+    const hasMode = typeof STATE !== 'undefined' && STATE.currentMode;
+
+    console.log('📊 État actuel:', {
+      hasData,
+      hasMode,
+      currentMode: STATE?.currentMode,
+      studentsCount: STATE?.students ? Object.keys(STATE.students).length : 0
+    });
+
+    // Si un mode est sélectionné mais les données ne sont pas chargées, les charger d'abord
+    if (!hasData && hasMode) {
+      console.log(`🔄 Chargement des données ${STATE.currentMode}...`);
+      if (typeof showSpinner === 'function') showSpinner();
+
+      try {
+        // Appeler loadDataForMode pour charger les données
+        if (typeof loadDataForMode === 'function') {
+          const success = await loadDataForMode(STATE.currentMode);
+          if (!success) {
+            console.error('❌ Échec du chargement des données');
+            if (typeof hideSpinner === 'function') hideSpinner();
+            if (typeof toast === 'function') {
+              toast(`❌ Impossible de charger les données ${STATE.currentMode}`, 'error');
+            }
+            return;
+          }
+          console.log(`✅ Données ${STATE.currentMode} chargées avec succès`);
+        } else {
+          console.error('❌ loadDataForMode non disponible');
+          if (typeof hideSpinner === 'function') hideSpinner();
+          if (typeof toast === 'function') {
+            toast('❌ Fonction de chargement non disponible', 'error');
+          }
+          return;
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors du chargement:', error);
+        if (typeof hideSpinner === 'function') hideSpinner();
+        if (typeof toast === 'function') {
+          toast('❌ Erreur lors du chargement des données', 'error');
+        }
+        return;
+      }
+
+      if (typeof hideSpinner === 'function') hideSpinner();
+    }
+
     this.isOpen = true;
-    
+
     // Sauvegarder l'état initial si des données sont chargées
     if (typeof STATE !== 'undefined' && STATE.students && Object.keys(STATE.students).length > 0) {
       this.initialState = this.exportCurrentState();
+      console.log('💾 État initial sauvegardé:', Object.keys(STATE.students).length, 'élèves');
     } else {
       this.initialState = null;
+      console.log('⚠️ Aucune donnée à sauvegarder');
     }
-    
+
     // Créer le panneau s'il n'existe pas
     if (!document.getElementById('optimizationPanel')) {
       this.createPanel();
     }
-    
+
     // Charger la configuration
     this.loadConfiguration();
-    
+
     // Initialiser le wizard à la phase 1
     this.currentPhase = 'structure';
     this.validatedPhases = [];
     setTimeout(() => this.goToPhase('structure'), 100);
-    
+
     // Afficher le panneau
     document.getElementById('optimizationPanel').classList.remove('translate-x-full');
     document.getElementById('optimizationOverlay').classList.remove('hidden');
+
+    console.log('✅ Panneau d\'optimisation ouvert');
   },
   
   /**
