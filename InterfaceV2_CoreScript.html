@@ -3490,15 +3490,19 @@ window.addEventListener('DOMContentLoaded', (event) => {
     
     // Fonction de vérification du mot de passe
     async function checkPassword(pwd) {
+      console.log('🔐 checkPassword appelé avec mot de passe de longueur:', pwd.length);
+
       // Essayer d'abord avec le mot de passe du serveur (_CONFIG B3)
       if (typeof google !== 'undefined' && google.script && google.script.run && google.script.run.getAdminPasswordFromConfig) {
+        console.log('✅ google.script.run disponible, appel serveur...');
         return new Promise((resolve) => {
           google.script.run
             .withSuccessHandler(function(configPassword){
+              console.log('✅ Mot de passe serveur récupéré, longueur:', configPassword ? configPassword.length : 0);
               resolve(pwd === configPassword || (window.CONFIG && pwd === CONFIG.adminPassword));
             })
             .withFailureHandler(function(err){
-              console.error('getAdminPasswordFromConfig KO:', err);
+              console.error('❌ getAdminPasswordFromConfig KO:', err);
               // Fallback sur CONFIG.adminPassword
               resolve(window.CONFIG && pwd === CONFIG.adminPassword);
             })
@@ -3506,6 +3510,9 @@ window.addEventListener('DOMContentLoaded', (event) => {
         });
       }
       // Fallback direct
+      console.warn('⚠️ google.script.run non disponible, fallback sur window.CONFIG');
+      console.log('🔍 window.CONFIG existe:', !!window.CONFIG);
+      console.log('🔍 window.CONFIG.adminPassword existe:', !!(window.CONFIG && window.CONFIG.adminPassword));
       return window.CONFIG && pwd === CONFIG.adminPassword;
     }
     
