@@ -27,7 +27,8 @@
 // ===================================================================
 
 var Logger = (function() {
-  'use strict';
+  // NOTE: 'use strict' retiré car incompatible avec exports globaux Apps Script
+  // En mode strict, this = undefined dans scope global, empêchant this.Logger = Logger
 
   // Niveaux de log (plus bas = plus verbeux)
   var LEVELS = {
@@ -311,6 +312,14 @@ var Logger = (function() {
       log(LEVELS.ERROR, message, data, error);
     },
 
+    /**
+     * Méthode log() pour compatibilité avec Logger natif Apps Script
+     * Alias vers info() pour maintenir la compatibilité du code existant
+     */
+    log: function(message, data, error) {
+      log(LEVELS.INFO, message, data, error);
+    },
+
     // Configuration
     setLevel: function(level) {
       if (typeof level === 'number' && level >= 0 && level <= 4) {
@@ -391,11 +400,11 @@ try {
   if (env === 'production') {
     Logger.enableProduction();
   } else {
-    Logger.enableDevelopment();
+    Logger.enableProduction(); // Mode PRODUCTION par défaut (moins verbeux)
   }
 } catch (e) {
-  // Fallback: mode development par défaut
-  Logger.enableDevelopment();
+  // Fallback: mode production par défaut (moins verbeux)
+  Logger.enableProduction();
 }
 
 // ===================================================================
@@ -434,5 +443,6 @@ function logLine(level, message) {
 // ===================================================================
 
 // Global export (Apps Script)
+// Sans 'use strict', this pointe vers le scope global dans Apps Script
 this.Logger = Logger;
 this.logLine = logLine;
