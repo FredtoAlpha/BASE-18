@@ -633,56 +633,29 @@ const OptimizationPanel = {
    * Obtenir le nombre total d'élèves
    */
   getTotalStudents() {
-    if (typeof STATE === 'undefined' || !STATE) return 0;
-
-    // ✅ PRIORITÉ 1: Chercher dans STATE.data (nouveau format)
-    if (STATE.data && Array.isArray(STATE.data)) {
-      console.log('📊 Comptage depuis STATE.data:', STATE.data.length);
-      return STATE.data.length;
+    if (typeof STATE === 'undefined' || !STATE || !STATE.students) {
+      console.warn('⚠️ STATE.students non disponible');
+      return 0;
     }
-
-    // ✅ PRIORITÉ 2: Chercher dans STATE.students (ancien format)
-    if (!STATE.students) return 0;
 
     const students = STATE.students;
 
+    // STATE.students est un dictionnaire plat {id: eleve}
+    // Créé dans loadDataForMode() depuis result.data
+    if (typeof students === 'object' && !Array.isArray(students)) {
+      const count = Object.keys(students).length;
+      console.log('📊 Total élèves:', count);
+      return count;
+    }
+
+    // Fallback si STATE.students est un array (cas non standard)
     if (Array.isArray(students)) {
-      console.log('📊 Comptage depuis STATE.students (array):', students.length);
+      console.log('📊 Total élèves (array):', students.length);
       return students.length;
     }
 
-    const values = Object.values(students || {});
-    if (values.length === 0) return 0;
-
-    const looksLikeStudentObj = (value) =>
-      value && typeof value === 'object' && !Array.isArray(value) && (
-        Object.prototype.hasOwnProperty.call(value, 'sexe') ||
-        Object.prototype.hasOwnProperty.call(value, 'nom') ||
-        Object.prototype.hasOwnProperty.call(value, 'id')
-      );
-
-    if (values.every(looksLikeStudentObj)) {
-      console.log('📊 Comptage depuis STATE.students (objets):', values.length);
-      return values.length;
-    }
-
-    let total = 0;
-    values.forEach((value) => {
-      if (Array.isArray(value)) {
-        total += value.length;
-        return;
-      }
-
-      if (value && typeof value === 'object') {
-        const innerValues = Object.values(value);
-        if (innerValues.length && innerValues.every(looksLikeStudentObj)) {
-          total += innerValues.length;
-        }
-      }
-    });
-
-    console.log('📊 Comptage depuis STATE.students (nested):', total);
-    return total;
+    console.warn('⚠️ Format inattendu pour STATE.students');
+    return 0;
   },
   
   /**
