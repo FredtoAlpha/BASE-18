@@ -3356,319 +3356,342 @@ window.addEventListener('DOMContentLoaded', (event) => {
   (function AdminMenuFix(){
     if (window.__ADMIN_FIX_APPLIED__) {
       console.warn('⚠️ AdminMenuFix déjà appliqué, skip');
-      return; 
+      return;
     }
     window.__ADMIN_FIX_APPLIED__ = true;
-    
-    // BLOQUER COMPLÈTEMENT toggleAdminMode legacy
-    window.toggleAdminMode = function() {
-      console.error('❌ toggleAdminMode() est DÉSACTIVÉE - Le menu Admin est géré par AdminMenuFix');
-      if (window.toast) toast('❌ Fonction désactivée - Utilisez le menu Admin', 'error');
-    };
-    console.log('🔒 toggleAdminMode() legacy BLOQUÉE globalement');
 
-    // 1) Déduplication stricte des #dropdownAdmin (root du menu)
-    const admins = Array.from(document.querySelectorAll('#dropdownAdmin'));
-    if (admins.length === 0) return; // rien à faire si pas de menu trouvé
-    const adminRoot = admins[0];
-    admins.slice(1).forEach(n => n.remove()); // supprime tous les doublons
-    if (!adminRoot.hasAttribute('data-menu-root')) adminRoot.setAttribute('data-menu-root','');
+    // Fonction d'initialisation du menu Admin
+    function initAdminMenu() {
+      // BLOQUER COMPLÈTEMENT toggleAdminMode legacy
+      window.toggleAdminMode = function() {
+        console.error('❌ toggleAdminMode() est DÉSACTIVÉE - Le menu Admin est géré par AdminMenuFix');
+        if (window.toast) toast('❌ Fonction désactivée - Utilisez le menu Admin', 'error');
+      };
+      console.log('🔒 toggleAdminMode() legacy BLOQUÉE globalement');
 
-    // 2) Récupérer les éléments SCOPÉS DANS CE ROOT (évite les collisions d'ID)
-    const q    = sel => adminRoot.querySelector(sel);
-    const btnAdmin = document.getElementById('btnAdmin'); // le bouton header a un id unique
-    const lockMsg  = q('#adminLockMessage');
-    const content  = q('#adminContent');
-    const btnUnlock = q('#btnUnlockAdmin');
-    let   btnLock   = q('#btnLockAdmin'); // peut ne pas exister
-    const status    = document.getElementById('adminStatusIndicator'); // optionnel
-
-    // 3) État initial (TOUJOURS verrouillé par défaut)
-    // IMPORTANT: On ignore localStorage.adminUnlocked ET adminForceMode au démarrage pour forcer le verrouillage
-    // L'admin doit déverrouiller manuellement à chaque session (sécurité)
-    let isAdminUnlocked = false; // TOUJOURS verrouillé au démarrage
-    
-    // Nettoyer localStorage au démarrage (sécurité maximale)
-    localStorage.removeItem('adminUnlocked');
-    localStorage.removeItem('adminForceMode');
-    if (window.STATE) window.STATE.adminMode = false;
-    console.log('🔒 localStorage nettoyé au démarrage (sécurité maximale)');
-
-    function paintLockedUI() {
-      lockMsg && lockMsg.classList.remove('hidden');
-      content && content.classList.add('hidden');
-      status  && (status.textContent = 'OFF', status.classList.remove('text-white','font-bold'));
-      if (btnAdmin) {
-        btnAdmin.classList.remove('bg-green-700','hover:bg-green-800');
-        btnAdmin.classList.add('bg-red-600','text-white','hover:bg-red-700');
+      // 1) Déduplication stricte des #dropdownAdmin (root du menu)
+      const admins = Array.from(document.querySelectorAll('#dropdownAdmin'));
+      if (admins.length === 0) {
+        console.warn('⚠️ AdminMenuFix: #dropdownAdmin non trouvé, abandon');
+        return; // rien à faire si pas de menu trouvé
       }
-      console.log('🔒 Admin verrouillé - état OFF (par défaut)');
-    }
+      const adminRoot = admins[0];
+      admins.slice(1).forEach(n => n.remove()); // supprime tous les doublons
+      if (!adminRoot.hasAttribute('data-menu-root')) adminRoot.setAttribute('data-menu-root','');
 
-    function paintUnlockedUI() {
-      lockMsg && lockMsg.classList.add('hidden');
-      content && content.classList.remove('hidden');
-      status  && (status.textContent = 'ON', status.classList.add('text-white','font-bold'));
-      if (btnAdmin) {
-        btnAdmin.classList.remove('bg-red-600','hover:bg-red-700');
-        btnAdmin.classList.add('bg-green-700','text-white','hover:bg-green-800');
+      // 2) Récupérer les éléments SCOPÉS DANS CE ROOT (évite les collisions d'ID)
+      const q    = sel => adminRoot.querySelector(sel);
+      const btnAdmin = document.getElementById('btnAdmin'); // le bouton header a un id unique
+
+      if (!btnAdmin) {
+        console.warn('⚠️ AdminMenuFix: bouton #btnAdmin non trouvé, abandon');
+        return;
       }
-      console.log('✅ Admin déverrouillé - état ON');
-    }
+      const lockMsg  = q('#adminLockMessage');
+      const content  = q('#adminContent');
+      const btnUnlock = q('#btnUnlockAdmin');
+      let   btnLock   = q('#btnLockAdmin'); // peut ne pas exister
+      const status    = document.getElementById('adminStatusIndicator'); // optionnel
 
-    function applyState() {
-      (isAdminUnlocked ? paintUnlockedUI : paintLockedUI)();
-    }
-    applyState();
-    
-    // GARANTIR que le menu est FERMÉ au démarrage
-    adminRoot.classList.add('hidden', 'opacity-0', 'scale-95');
-    console.log('🔒 Menu Admin fermé par défaut');
-    
-    // Fonctions d'animation fluide
-    function openMenu() {
-      adminRoot.classList.remove('hidden');
-      // Force reflow pour que la transition fonctionne
-      void adminRoot.offsetWidth;
-      requestAnimationFrame(() => {
-        adminRoot.classList.remove('opacity-0', 'scale-95');
-        adminRoot.classList.add('opacity-100', 'scale-100');
-      });
-    }
-    
-    function closeMenu() {
-      adminRoot.classList.remove('opacity-100', 'scale-100');
-      adminRoot.classList.add('opacity-0', 'scale-95');
-      // Attendre la fin de l'animation avant de cacher
-      setTimeout(() => {
-        adminRoot.classList.add('hidden');
-      }, 200); // Correspond à duration-200
-    }
+      // 3) État initial (TOUJOURS verrouillé par défaut)
+      // IMPORTANT: On ignore localStorage.adminUnlocked ET adminForceMode au démarrage pour forcer le verrouillage
+      // L'admin doit déverrouiller manuellement à chaque session (sécurité)
+      let isAdminUnlocked = false; // TOUJOURS verrouillé au démarrage
 
-    // 4) Positionnement + toggle du dropdown Admin (ouvre toujours le même root)
-    if (btnAdmin) {
+      // Nettoyer localStorage au démarrage (sécurité maximale)
+      localStorage.removeItem('adminUnlocked');
+      localStorage.removeItem('adminForceMode');
+      if (window.STATE) window.STATE.adminMode = false;
+      console.log('🔒 localStorage nettoyé au démarrage (sécurité maximale)');
+
+      function paintLockedUI() {
+        lockMsg && lockMsg.classList.remove('hidden');
+        content && content.classList.add('hidden');
+        status  && (status.textContent = 'OFF', status.classList.remove('text-white','font-bold'));
+        if (btnAdmin) {
+          btnAdmin.classList.remove('bg-green-700','hover:bg-green-800');
+          btnAdmin.classList.add('bg-red-600','text-white','hover:bg-red-700');
+        }
+        console.log('🔒 Admin verrouillé - état OFF (par défaut)');
+      }
+
+      function paintUnlockedUI() {
+        lockMsg && lockMsg.classList.add('hidden');
+        content && content.classList.remove('hidden');
+        status  && (status.textContent = 'ON', status.classList.add('text-white','font-bold'));
+        if (btnAdmin) {
+          btnAdmin.classList.remove('bg-red-600','hover:bg-red-700');
+          btnAdmin.classList.add('bg-green-700','text-white','hover:bg-green-800');
+        }
+        console.log('✅ Admin déverrouillé - état ON');
+      }
+
+      function applyState() {
+        (isAdminUnlocked ? paintUnlockedUI : paintLockedUI)();
+      }
+      applyState();
+
+      // GARANTIR que le menu est FERMÉ au démarrage
+      adminRoot.classList.add('hidden', 'opacity-0', 'scale-95');
+      console.log('🔒 Menu Admin fermé par défaut');
+
+      // Fonctions d'animation fluide
+      function openMenu() {
+        adminRoot.classList.remove('hidden');
+        // Force reflow pour que la transition fonctionne
+        void adminRoot.offsetWidth;
+        requestAnimationFrame(() => {
+          adminRoot.classList.remove('opacity-0', 'scale-95');
+          adminRoot.classList.add('opacity-100', 'scale-100');
+        });
+      }
+
+      function closeMenu() {
+        adminRoot.classList.remove('opacity-100', 'scale-100');
+        adminRoot.classList.add('opacity-0', 'scale-95');
+        // Attendre la fin de l'animation avant de cacher
+        setTimeout(() => {
+          adminRoot.classList.add('hidden');
+        }, 200); // Correspond à duration-200
+      }
+
+      // 4) Positionnement + toggle du dropdown Admin (ouvre toujours le même root)
+      console.log('✅ Attachement listener click sur btnAdmin');
       btnAdmin.addEventListener('click', (e) => {
         e.stopPropagation();
+        console.log('🖱️ Clic sur btnAdmin détecté');
         const rect = btnAdmin.getBoundingClientRect();
         adminRoot.style.top  = `${rect.bottom + 8}px`;
         adminRoot.style.left = `${rect.right - 320}px`;
         adminRoot.style.right = 'auto';
-        
+
         // Toggle avec animation
         const isHidden = adminRoot.classList.contains('hidden');
+        console.log('   Menu actuellement caché?', isHidden);
         if (isHidden) {
           openMenu();
         } else {
           closeMenu();
         }
       });
-    }
-    // Fermer au clic extérieur
-    document.addEventListener('click', (e) => {
-      if (!adminRoot.contains(e.target) && e.target !== btnAdmin) {
-        if (!adminRoot.classList.contains('hidden')) {
-          closeMenu();
+      // Fermer au clic extérieur
+      document.addEventListener('click', (e) => {
+        if (!adminRoot.contains(e.target) && e.target !== btnAdmin) {
+          if (!adminRoot.classList.contains('hidden')) {
+            closeMenu();
+          }
         }
-      }
-    });
-    adminRoot.addEventListener('click', e => e.stopPropagation());
-
-    // 5) Déverrouillage par mot de passe avec champ élégant (pas de prompt!)
-    const passwordInput = q('#adminPasswordInput');
-    const passwordError = q('#adminPasswordError');
-    const btnToggleVisibility = q('#btnTogglePasswordVisibility');
-    
-    // Toggle visibilité du mot de passe
-    if (btnToggleVisibility && passwordInput) {
-      btnToggleVisibility.addEventListener('click', () => {
-        const isPassword = passwordInput.type === 'password';
-        passwordInput.type = isPassword ? 'text' : 'password';
-        const icon = btnToggleVisibility.querySelector('i');
-        icon.className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
       });
-    }
-    
-    // Fonction de vérification du mot de passe
-    async function checkPassword(pwd) {
-      // Essayer d'abord avec le mot de passe du serveur (_CONFIG B3)
-      if (typeof google !== 'undefined' && google.script && google.script.run && google.script.run.getAdminPasswordFromConfig) {
-        return new Promise((resolve) => {
-          google.script.run
-            .withSuccessHandler(function(configPassword){
-              resolve(pwd === configPassword || (window.CONFIG && pwd === CONFIG.adminPassword));
-            })
-            .withFailureHandler(function(err){
-              console.error('getAdminPasswordFromConfig KO:', err);
-              // Fallback sur CONFIG.adminPassword
-              resolve(window.CONFIG && pwd === CONFIG.adminPassword);
-            })
-            .getAdminPasswordFromConfig();
+      adminRoot.addEventListener('click', e => e.stopPropagation());
+
+      // 5) Déverrouillage par mot de passe avec champ élégant (pas de prompt!)
+      const passwordInput = q('#adminPasswordInput');
+      const passwordError = q('#adminPasswordError');
+      const btnToggleVisibility = q('#btnTogglePasswordVisibility');
+
+      // Toggle visibilité du mot de passe
+      if (btnToggleVisibility && passwordInput) {
+        btnToggleVisibility.addEventListener('click', () => {
+          const isPassword = passwordInput.type === 'password';
+          passwordInput.type = isPassword ? 'text' : 'password';
+          const icon = btnToggleVisibility.querySelector('i');
+          icon.className = isPassword ? 'fas fa-eye-slash' : 'fas fa-eye';
         });
       }
-      // Fallback direct
-      return window.CONFIG && pwd === CONFIG.adminPassword;
-    }
-    
-    // Fonction de déverrouillage
-    async function unlockFlow() {
-      const pwd = passwordInput ? passwordInput.value.trim() : '';
-      
-      if (!pwd) {
-        passwordError && (passwordError.textContent = 'Veuillez entrer un mot de passe');
-        passwordError && passwordError.classList.remove('hidden');
-        passwordInput && passwordInput.classList.add('border-red-500');
-        return;
-      }
-      
-      const isValid = await checkPassword(pwd);
-      
-      if (isValid) {
-        isAdminUnlocked = true;
-        localStorage.setItem('adminUnlocked','true');
-        applyState();
-        closeMenu(); // Fermer le menu avec animation après déverrouillage
-        window.toast && toast('🔓 Mode Admin activé','success');
-        // Effacer le champ
-        passwordInput && (passwordInput.value = '');
-        passwordError && passwordError.classList.add('hidden');
-        passwordInput && passwordInput.classList.remove('border-red-500');
-      } else {
-        passwordError && (passwordError.textContent = 'Mot de passe incorrect');
-        passwordError && passwordError.classList.remove('hidden');
-        passwordInput && passwordInput.classList.add('border-red-500');
-        passwordInput && passwordInput.select(); // Sélectionner le texte pour faciliter la correction
-      }
-    }
 
-    // Clic sur le bouton Déverrouiller
-    btnUnlock && btnUnlock.addEventListener('click', (e)=>{
-      e.preventDefault();
-      unlockFlow();
-    });
-    
-    // Appuyer sur Entrée dans le champ
-    passwordInput && passwordInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
+      // Fonction de vérification du mot de passe
+      async function checkPassword(pwd) {
+        // Essayer d'abord avec le mot de passe du serveur (_CONFIG B3)
+        if (typeof google !== 'undefined' && google.script && google.script.run && google.script.run.getAdminPasswordFromConfig) {
+          return new Promise((resolve) => {
+            google.script.run
+              .withSuccessHandler(function(configPassword){
+                resolve(pwd === configPassword || (window.CONFIG && pwd === CONFIG.adminPassword));
+              })
+              .withFailureHandler(function(err){
+                console.error('getAdminPasswordFromConfig KO:', err);
+                // Fallback sur CONFIG.adminPassword
+                resolve(window.CONFIG && pwd === CONFIG.adminPassword);
+              })
+              .getAdminPasswordFromConfig();
+          });
+        }
+        // Fallback direct
+        return window.CONFIG && pwd === CONFIG.adminPassword;
+      }
+
+      // Fonction de déverrouillage
+      async function unlockFlow() {
+        const pwd = passwordInput ? passwordInput.value.trim() : '';
+
+        if (!pwd) {
+          passwordError && (passwordError.textContent = 'Veuillez entrer un mot de passe');
+          passwordError && passwordError.classList.remove('hidden');
+          passwordInput && passwordInput.classList.add('border-red-500');
+          return;
+        }
+
+        const isValid = await checkPassword(pwd);
+
+        if (isValid) {
+          isAdminUnlocked = true;
+          localStorage.setItem('adminUnlocked','true');
+          applyState();
+          closeMenu(); // Fermer le menu avec animation après déverrouillage
+          window.toast && toast('🔓 Mode Admin activé','success');
+          // Effacer le champ
+          passwordInput && (passwordInput.value = '');
+          passwordError && passwordError.classList.add('hidden');
+          passwordInput && passwordInput.classList.remove('border-red-500');
+        } else {
+          passwordError && (passwordError.textContent = 'Mot de passe incorrect');
+          passwordError && passwordError.classList.remove('hidden');
+          passwordInput && passwordInput.classList.add('border-red-500');
+          passwordInput && passwordInput.select(); // Sélectionner le texte pour faciliter la correction
+        }
+      }
+
+      // Clic sur le bouton Déverrouiller
+      btnUnlock && btnUnlock.addEventListener('click', (e)=>{
         e.preventDefault();
         unlockFlow();
+      });
+
+      // Appuyer sur Entrée dans le champ
+      passwordInput && passwordInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          unlockFlow();
+        }
+      });
+
+      // Effacer l'erreur quand on tape
+      passwordInput && passwordInput.addEventListener('input', () => {
+        passwordError && passwordError.classList.add('hidden');
+        passwordInput.classList.remove('border-red-500');
+      });
+
+      // 6) Bouton "Verrouiller" cohérent (créé si absent)
+      if (!btnLock) {
+        btnLock = document.createElement('button');
+        btnLock.id = 'btnLockAdmin';
+        btnLock.className = 'w-full px-4 py-2 my-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors';
+        btnLock.innerHTML = '<i class="fas fa-lock mr-2"></i> Verrouiller le menu Admin';
+        content && content.appendChild(btnLock);
       }
-    });
-    
-    // Effacer l'erreur quand on tape
-    passwordInput && passwordInput.addEventListener('input', () => {
-      passwordError && passwordError.classList.add('hidden');
-      passwordInput.classList.remove('border-red-500');
-    });
-
-    // 6) Bouton "Verrouiller" cohérent (créé si absent)
-    if (!btnLock) {
-      btnLock = document.createElement('button');
-      btnLock.id = 'btnLockAdmin';
-      btnLock.className = 'w-full px-4 py-2 my-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors';
-      btnLock.innerHTML = '<i class="fas fa-lock mr-2"></i> Verrouiller le menu Admin';
-      content && content.appendChild(btnLock);
-    }
-    btnLock.addEventListener('click', ()=>{
-      localStorage.removeItem('adminUnlocked');
-      localStorage.removeItem('adminForceMode');
-      if (window.STATE) window.STATE.adminMode = false;
-      if (!forceMode) isAdminUnlocked = false; // si forceMode=true, on reste ON
-      applyState();
-      adminRoot.classList.add('hidden');
-      window.toast && toast('🔒 Mode Admin verrouillé','info');
-    });
-
-    // 7) Garantir l'accordéon (FILTRER / AIDE) dans CE menu (scopé)
-    window.toggleSection = window.toggleSection || function(key, el){
-      const root = el?.closest('[data-menu-root]') || document;
-      const section = root.querySelector(`[data-section-id="${key}"]`);
-      const body = section?.querySelector('.section-body') || section || root.getElementById && root.getElementById(key+'Section');
-      const icon = section?.querySelector('.section-icon') || el?.querySelector('.fa-chevron-down');
-      if (!body) return;
-      body.classList.toggle('hidden');
-      icon && icon.classList.toggle('rotate-180');
-    };
-
-    // 8) Câblage des boutons Admin (scopé dans adminRoot)
-    const wireButton = (id, handler) => {
-      const btn = q(`#${id}`);
-      btn && btn.addEventListener('click', () => {
-        handler();
+      btnLock.addEventListener('click', ()=>{
+        localStorage.removeItem('adminUnlocked');
+        localStorage.removeItem('adminForceMode');
+        if (window.STATE) window.STATE.adminMode = false;
+        if (!forceMode) isAdminUnlocked = false; // si forceMode=true, on reste ON
+        applyState();
         adminRoot.classList.add('hidden');
+        window.toast && toast('🔒 Mode Admin verrouillé','info');
       });
-    };
 
-    wireButton('btnSourcesAdmin', () => window.openStartupModal && openStartupModal({ force: true }));
-    wireButton('btnOptimizationAdmin', () => {
-      if (typeof OptimizationPanel !== 'undefined' && OptimizationPanel.open) {
-        OptimizationPanel.open();
-      } else if (window.openOptimizationPanel) {
-        window.openOptimizationPanel();
-      } else {
-        console.warn('OptimizationPanel non disponible');
-        window.toast && toast('Module d\'optimisation non chargé', 'warning');
-      }
-    });
-    wireButton('menuDarkModeAdmin', () => window.toggleDarkMode && toggleDarkMode());
-    wireButton('menuZoomAdmin', () => {
-      const cards = document.querySelectorAll('.student-card');
-      const isZoomed = cards[0]?.style.transform === 'scale(1.1)';
-      cards.forEach(card => card.style.transform = isZoomed ? 'scale(1)' : 'scale(1.1)');
-      window.toast && toast(isZoomed ? 'Zoom désactivé' : 'Zoom activé', 'info');
-    });
-    wireButton('menuFullscreenAdmin', () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen();
-      } else {
-        document.exitFullscreen();
-      }
-    });
-    wireButton('menuImportScoresAdmin', () => window.openImportScoresModal && openImportScoresModal());
-    wireButton('btnExportAdmin', () => window.exportData && exportData());
-    wireButton('menuRulesAdmin', () => window.openRulesModal && openRulesModal());
+      // 7) Garantir l'accordéon (FILTRER / AIDE) dans CE menu (scopé)
+      window.toggleSection = window.toggleSection || function(key, el){
+        const root = el?.closest('[data-menu-root]') || document;
+        const section = root.querySelector(`[data-section-id="${key}"]`);
+        const body = section?.querySelector('.section-body') || section || root.getElementById && root.getElementById(key+'Section');
+        const icon = section?.querySelector('.section-icon') || el?.querySelector('.fa-chevron-down');
+        if (!body) return;
+        body.classList.toggle('hidden');
+        icon && icon.classList.toggle('rotate-180');
+      };
 
-    // 9) Mode Force Admin (toggle)
-    const toggleForce = q('#toggleAdminForceMode');
-    if (toggleForce) {
-      // TOUJOURS désactivé au démarrage (sécurité)
-      toggleForce.checked = false;
-      if (window.STATE) window.STATE.adminMode = false;
-      console.log('🔒 Mode Force désactivé au démarrage (sécurité)');
-      
-      toggleForce.addEventListener('change', () => {
-        const isOn = toggleForce.checked;
-        console.log('🔄 Toggle Mode Force changé:', isOn);
-        console.log('   window.STATE existe?', !!window.STATE);
-        console.log('   STATE existe?', typeof STATE !== 'undefined');
-        
-        if (window.STATE) {
-          window.STATE.adminMode = isOn;
-          console.log('   ✅ window.STATE.adminMode =', window.STATE.adminMode);
+      // 8) Câblage des boutons Admin (scopé dans adminRoot)
+      const wireButton = (id, handler) => {
+        const btn = q(`#${id}`);
+        btn && btn.addEventListener('click', () => {
+          handler();
+          adminRoot.classList.add('hidden');
+        });
+      };
+
+      wireButton('btnSourcesAdmin', () => window.openStartupModal && openStartupModal({ force: true }));
+      wireButton('btnOptimizationAdmin', () => {
+        if (typeof OptimizationPanel !== 'undefined' && OptimizationPanel.open) {
+          OptimizationPanel.open();
+        } else if (window.openOptimizationPanel) {
+          window.openOptimizationPanel();
         } else {
-          console.error('   ❌ window.STATE n\'existe pas!');
-        }
-        
-        localStorage.setItem('adminForceMode', isOn);
-        
-        if (isOn) {
-          window.toast && toast('⚠️ Mode Force activé - Toutes les contraintes sont ignorées', 'warning');
-          console.log('🔓 Mode Admin Force: ON - Déplacements libres (FIXE, PERMUT, CONDI ignorés)');
-          console.log('   STATE.adminMode =', STATE?.adminMode);
-        } else {
-          window.toast && toast('✅ Mode Force désactivé - Contraintes respectées', 'success');
-          console.log('🔒 Mode Admin Force: OFF - Contraintes actives');
-          console.log('   STATE.adminMode =', STATE?.adminMode);
-        }
-        
-        // 🔄 Rafraîchir l'affichage pour mettre à jour les attributs draggable des cartes
-        console.log('🔄 Rafraîchissement de l\'affichage pour le mode Force...');
-        if (typeof renderColumns === 'function') {
-          renderColumns();
-          console.log('   ✅ renderColumns() appelé');
-        } else {
-          console.error('   ❌ renderColumns n\'existe pas!');
+          console.warn('OptimizationPanel non disponible');
+          window.toast && toast('Module d\'optimisation non chargé', 'warning');
         }
       });
+      wireButton('menuDarkModeAdmin', () => window.toggleDarkMode && toggleDarkMode());
+      wireButton('menuZoomAdmin', () => {
+        const cards = document.querySelectorAll('.student-card');
+        const isZoomed = cards[0]?.style.transform === 'scale(1.1)';
+        cards.forEach(card => card.style.transform = isZoomed ? 'scale(1)' : 'scale(1.1)');
+        window.toast && toast(isZoomed ? 'Zoom désactivé' : 'Zoom activé', 'info');
+      });
+      wireButton('menuFullscreenAdmin', () => {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen();
+        } else {
+          document.exitFullscreen();
+        }
+      });
+      wireButton('menuImportScoresAdmin', () => window.openImportScoresModal && openImportScoresModal());
+      wireButton('btnExportAdmin', () => window.exportData && exportData());
+      wireButton('menuRulesModal', () => window.openRulesModal && openRulesModal());
+
+      // 9) Mode Force Admin (toggle)
+      const toggleForce = q('#toggleAdminForceMode');
+      if (toggleForce) {
+        // TOUJOURS désactivé au démarrage (sécurité)
+        toggleForce.checked = false;
+        if (window.STATE) window.STATE.adminMode = false;
+        console.log('🔒 Mode Force désactivé au démarrage (sécurité)');
+
+        toggleForce.addEventListener('change', () => {
+          const isOn = toggleForce.checked;
+          console.log('🔄 Toggle Mode Force changé:', isOn);
+          console.log('   window.STATE existe?', !!window.STATE);
+          console.log('   STATE existe?', typeof STATE !== 'undefined');
+
+          if (window.STATE) {
+            window.STATE.adminMode = isOn;
+            console.log('   ✅ window.STATE.adminMode =', window.STATE.adminMode);
+          } else {
+            console.error('   ❌ window.STATE n\'existe pas!');
+          }
+
+          localStorage.setItem('adminForceMode', isOn);
+
+          if (isOn) {
+            window.toast && toast('⚠️ Mode Force activé - Toutes les contraintes sont ignorées', 'warning');
+            console.log('🔓 Mode Admin Force: ON - Déplacements libres (FIXE, PERMUT, CONDI ignorés)');
+            console.log('   STATE.adminMode =', STATE?.adminMode);
+          } else {
+            window.toast && toast('✅ Mode Force désactivé - Contraintes respectées', 'success');
+            console.log('🔒 Mode Admin Force: OFF - Contraintes actives');
+            console.log('   STATE.adminMode =', STATE?.adminMode);
+          }
+
+          // 🔄 Rafraîchir l'affichage pour mettre à jour les attributs draggable des cartes
+          console.log('🔄 Rafraîchissement de l\'affichage pour le mode Force...');
+          if (typeof renderColumns === 'function') {
+            renderColumns();
+            console.log('   ✅ renderColumns() appelé');
+          } else {
+            console.error('   ❌ renderColumns n\'existe pas!');
+          }
+        });
+      }
+
+      console.log('✅ AdminMenuFix: Initialisation complète');
+    }
+
+    // Appel conditionnel de initAdminMenu() en fonction de l'état du DOM
+    if (document.readyState === 'loading') {
+      console.log('⏳ AdminMenuFix: DOM en cours de chargement, attente DOMContentLoaded');
+      document.addEventListener('DOMContentLoaded', initAdminMenu);
+    } else {
+      console.log('✅ AdminMenuFix: DOM déjà chargé, initialisation immédiate');
+      initAdminMenu();
     }
 
   })();
