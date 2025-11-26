@@ -633,11 +633,21 @@ const OptimizationPanel = {
    * Obtenir le nombre total d'élèves
    */
   getTotalStudents() {
-    if (typeof STATE === 'undefined' || !STATE || !STATE.students) return 0;
+    if (typeof STATE === 'undefined' || !STATE) return 0;
+
+    // ✅ PRIORITÉ 1: Chercher dans STATE.data (nouveau format)
+    if (STATE.data && Array.isArray(STATE.data)) {
+      console.log('📊 Comptage depuis STATE.data:', STATE.data.length);
+      return STATE.data.length;
+    }
+
+    // ✅ PRIORITÉ 2: Chercher dans STATE.students (ancien format)
+    if (!STATE.students) return 0;
 
     const students = STATE.students;
 
     if (Array.isArray(students)) {
+      console.log('📊 Comptage depuis STATE.students (array):', students.length);
       return students.length;
     }
 
@@ -652,6 +662,7 @@ const OptimizationPanel = {
       );
 
     if (values.every(looksLikeStudentObj)) {
+      console.log('📊 Comptage depuis STATE.students (objets):', values.length);
       return values.length;
     }
 
@@ -670,6 +681,7 @@ const OptimizationPanel = {
       }
     });
 
+    console.log('📊 Comptage depuis STATE.students (nested):', total);
     return total;
   },
   
