@@ -273,9 +273,6 @@ function getOptimizationContext_V2() {
       if (override) {
         targetsByClass[classe] = Number(override);
         logLine('INFO', '  🔧 Override: ' + classe + ' effectif = ' + override + ' (depuis _OPTI_CONFIG)');
-      } else if (structureRules[classe] && structureRules[classe].capacity) {
-        targetsByClass[classe] = structureRules[classe].capacity;
-        logLine('INFO', '  📊 ' + classe + ' effectif = ' + structureRules[classe].capacity + ' (depuis _STRUCTURE)');
       } else {
         targetsByClass[classe] = 25;
         logLine('INFO', '  ⚙️ ' + classe + ' effectif = 25 (fallback)');
