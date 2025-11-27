@@ -492,6 +492,12 @@ const OptimizationPanel = {
               <div id="doubleConstraintsBadges" class="flex flex-wrap gap-2"></div>
             </div>
 
+            <!-- 🆕 COMPTEUR DE QUOTAS RESTANTS -->
+            <div id="remainingQuotasDisplay" class="mb-4 hidden">
+              <h4 class="font-bold mb-2 text-sm">📊 Quotas restants à placer :</h4>
+              <div id="remainingQuotasBadges" class="flex flex-wrap gap-2"></div>
+            </div>
+
             <!-- Distribution automatique des quotas -->
             <div class="mb-4" id="autoDistributeSection" style="display:none;">
               <button onclick="OptimizationPanel.autoDistributeQuotas()" class="btn btn-success w-full">
@@ -1285,6 +1291,109 @@ const OptimizationPanel = {
   },
 
   /**
+   * 🆕 NOUVEAU : Afficher les compteurs de quotas restants
+   * Calcule combien d'élèves restent à placer pour chaque option
+   */
+  updateRemainingQuotas() {
+    const remainingDisplay = document.getElementById('remainingQuotasDisplay');
+    const remainingBadgesContainer = document.getElementById('remainingQuotasBadges');
+
+    if (!remainingDisplay || !remainingBadgesContainer) return;
+
+    // Calculer les totaux placés par option
+    const placedCounts = {};
+
+    // Parcourir toutes les classes et leurs quotas
+    if (this.classOptionsConfig) {
+      Object.values(this.classOptionsConfig).forEach(classConfig => {
+        if (classConfig && typeof classConfig === 'object') {
+          Object.entries(classConfig).forEach(([option, quota]) => {
+            if (typeof quota === 'number') {
+              placedCounts[option] = (placedCounts[option] || 0) + quota;
+            }
+          });
+        }
+      });
+    }
+
+    // Combiner LV2 et OPT
+    const allOptions = [...(this.detectedLV2 || []), ...(this.detectedOPT || [])];
+
+    if (allOptions.length === 0) {
+      remainingDisplay.classList.add('hidden');
+      return;
+    }
+
+    // Calculer les restants pour chaque option
+    const remainingStats = allOptions.map(option => {
+      const total = (this.lv2Counts && this.lv2Counts[option]) ||
+                    (this.optCounts && this.optCounts[option]) || 0;
+      const placed = placedCounts[option] || 0;
+      const remaining = total - placed;
+
+      // Déterminer le type (LV2 ou OPT)
+      const isLV2 = this.detectedLV2 && this.detectedLV2.includes(option);
+
+      return {
+        option,
+        total,
+        placed,
+        remaining,
+        isLV2,
+        percentPlaced: total > 0 ? (placed / total) * 100 : 0
+      };
+    }).filter(stat => stat.total > 0); // Filtrer les options sans élèves
+
+    // Trier par nombre restant (ceux qui ont le plus besoin d'être placés en premier)
+    remainingStats.sort((a, b) => b.remaining - a.remaining);
+
+    // Générer les badges avec codes couleur
+    const badges = remainingStats.map(stat => {
+      let colorClass, icon;
+
+      if (stat.remaining < 0) {
+        // ❌ DÉPASSEMENT - Rouge
+        colorClass = 'bg-red-100 text-red-800 border-red-400';
+        icon = '❌';
+      } else if (stat.remaining === 0) {
+        // ✅ COMPLET - Vert foncé
+        colorClass = 'bg-green-100 text-green-800 border-green-400';
+        icon = '✅';
+      } else if (stat.percentPlaced >= 80) {
+        // ⚠️ PRESQUE COMPLET - Orange
+        colorClass = 'bg-orange-100 text-orange-800 border-orange-400';
+        icon = '⚠️';
+      } else if (stat.percentPlaced >= 50) {
+        // 🔵 EN COURS - Bleu
+        colorClass = 'bg-blue-100 text-blue-800 border-blue-400';
+        icon = '🔵';
+      } else {
+        // ⭕ DISPONIBLE - Gris
+        colorClass = 'bg-gray-100 text-gray-800 border-gray-400';
+        icon = '⭕';
+      }
+
+      const remainingText = stat.remaining < 0
+        ? `DÉPASSEMENT de ${Math.abs(stat.remaining)}`
+        : `${stat.remaining} restant${stat.remaining > 1 ? 's' : ''}`;
+
+      return `<span class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold border ${colorClass}" title="${stat.placed} placé(s) sur ${stat.total}">
+        ${icon} ${stat.option}: ${remainingText} <span class="text-xs ml-1">(${stat.placed}/${stat.total})</span>
+      </span>`;
+    }).join('');
+
+    if (badges) {
+      remainingBadgesContainer.innerHTML = badges;
+      remainingDisplay.classList.remove('hidden');
+
+      // Log pour debug
+      console.log('📊 QUOTAS RESTANTS:', remainingStats);
+    } else {
+      remainingDisplay.classList.add('hidden');
+    }
+  },
+
+  /**
    * ✅ NOUVEAU : Calculer la répartition cible des effectifs par classe
    * Exemple: 121 élèves sur 5 classes → [25, 25, 24, 24, 23]
    */
@@ -1546,6 +1655,9 @@ const OptimizationPanel = {
     });
     html += '</div>';
     table.innerHTML = html;
+
+    // 🆕 Mettre à jour les compteurs de quotas restants
+    this.updateRemainingQuotas();
   },
 
   /**
@@ -1566,6 +1678,9 @@ const OptimizationPanel = {
     }
 
     console.log(`✅ Quota défini: ${clsName} → ${option} = ${quota}`);
+
+    // 🆕 Mettre à jour les compteurs de quotas restants en temps réel
+    this.updateRemainingQuotas();
   },
 
   toggleClassOptionCat(clsName, cat, option, isChecked) {
@@ -1766,28 +1881,11 @@ const OptimizationPanel = {
       console.log('📝 Écriture dans _STRUCTURE (référence)...');
       setStreamingStatus('📝 Mise à jour de _STRUCTURE...', 'Synchronisation...');
       
-      // ✅ CORRECTION CRITIQUE : Convertir le format des quotas
-      // De: { "6°1": { "ITA": 6, "CHAV": 10 } }
-      // Vers: { "6°1": { LV2: ["ITA"], OPT: ["CHAV"] } }
-      const optionsByClass = {};
-      Object.keys(config.quotas || {}).forEach(cls => {
-        const quotas = config.quotas[cls] || {};
-        optionsByClass[cls] = { LV2: [], OPT: [] };
-        
-        Object.keys(quotas).forEach(option => {
-          const optUpper = option.toUpperCase();
-          // Classifier en LV2 ou OPT
-          if (optUpper === 'CHAV' || optUpper === 'LAT' || optUpper === 'GRE' || optUpper === 'LATIN') {
-            optionsByClass[cls].OPT.push(optUpper);
-          } else {
-            optionsByClass[cls].LV2.push(optUpper);
-          }
-        });
-      });
-      
-      console.log('📊 Format converti pour setStructureOptionsFromUI:', optionsByClass);
-      
-      const structureWriteResult = await gs('setStructureOptionsFromUI', optionsByClass);
+      // ✅ ENVOI DES QUOTAS COMPLETS (avec valeurs)
+      // Format: { "6°1": { "ITA": 6, "CHAV": 10 } }
+      console.log('📊 Quotas à synchroniser dans _STRUCTURE:', config.quotas);
+
+      const structureWriteResult = await gs('setStructureOptionsFromUI', config.quotas);
       if (!structureWriteResult.success) {
         const errorMsg = '❌ Échec de la mise à jour de _STRUCTURE : ' + (structureWriteResult.error || 'Erreur inconnue');
         console.error(errorMsg);
@@ -2068,24 +2166,11 @@ const OptimizationPanel = {
         weights: poidsOverride                 // Poids des critères
       };
 
-      // Construire la configuration options → classes (sans filtrage agressif)
-      const optionsByClass = {};
-      if (this.classOptionsConfig) {
-        Object.keys(this.classOptionsConfig).forEach((cls) => {
-          const v = this.classOptionsConfig[cls] || {};
-          optionsByClass[cls] = {
-            LV2: Array.isArray(v.LV2) ? v.LV2.slice() : [],
-            OPT: Array.isArray(v.OPT) ? v.OPT.slice() : []
-          };
-        });
-      }
-
-      const hasAnyOption = Object.values(optionsByClass).some((cfg) => {
-        if (!cfg) return false;
-        const lv2 = Array.isArray(cfg.LV2) ? cfg.LV2 : [];
-        const opt = Array.isArray(cfg.OPT) ? cfg.OPT : [];
-        return lv2.length > 0 || opt.length > 0;
+      // ✅ Vérifier qu'au moins une option est configurée
+      const hasAnyOption = this.classOptionsConfig && Object.values(this.classOptionsConfig).some((quotas) => {
+        return quotas && Object.keys(quotas).length > 0;
       });
+
       if (!hasAnyOption) {
         if (typeof toast === 'function') {
           toast('⚠️ Configurez au moins une option/LV2 pour une classe.', 'warning');
@@ -2094,8 +2179,8 @@ const OptimizationPanel = {
         return;
       }
 
-      console.log('📤 Envoi de optionsByClass vers le serveur:', JSON.stringify(optionsByClass));
-      console.log('🔍 Détail optionsByClass:', optionsByClass);
+      console.log('📤 Envoi des quotas vers le serveur:', JSON.stringify(this.classOptionsConfig));
+      console.log('🔍 Détail quotas:', this.classOptionsConfig);
 
       // ✅ VÉRIFICATION CRITIQUE : Vérifier que setStructureOptionsFromUI existe
       let structureConfigured = false;
@@ -2124,7 +2209,7 @@ const OptimizationPanel = {
                   console.error('❌ setStructureOptionsFromUI échec:', error);
                   reject(error);
                 })
-                .setStructureOptionsFromUI(optionsByClass);
+                .setStructureOptionsFromUI(this.classOptionsConfig);
             } else {
               clearTimeout(timeout);
               console.warn('⚠️ google.script.run non disponible (environnement dev?)');
