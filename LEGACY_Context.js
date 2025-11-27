@@ -188,117 +188,29 @@ function makeCtxFromSourceSheets_LEGACY() {
 
 /**
  * Lit le mapping CLASSE_ORIGINE → CLASSE_DEST depuis _STRUCTURE
+ * ✅ UTILISE LE MODULE CENTRALISÉ StructureReader.gs
  * @returns {Object} Mapping { "ECOLE1": "6°1", "6°1": "5°1", ... }
  */
 function readSourceToDestMapping_LEGACY() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const structSheet = ss.getSheetByName('_STRUCTURE');
   const mapping = {};
 
-  if (!structSheet) {
-    logLine('WARN', '⚠️ Onglet _STRUCTURE introuvable, mapping vide');
-    return mapping;
-  }
-
   try {
-    const data = structSheet.getDataRange().getValues();
+    // ✅ Utiliser le module centralisé
+    const structData = readStructure();
 
-    // Recherche de l'en-tête (tolérer lignes de garde/metadata)
-    let headerRow = -1;
-    let isV3Format = false; // Format V3 (Type, Nom Classe) ou LEGACY (CLASSE_ORIGINE, CLASSE_DEST)
-
-    for (let i = 0; i < Math.min(20, data.length); i++) {
-      const row = data[i];
-      for (let j = 0; j < row.length; j++) {
-        const cell = String(row[j] || '').trim().toUpperCase();
-        // ✅ Détecter format V3
-        if (cell === 'TYPE' || cell === 'NOM CLASSE') {
-          headerRow = i;
-          isV3Format = true;
-          break;
-        }
-        // Détecter format LEGACY
-        if (cell === 'CLASSE_DEST' || cell === 'CLASSE_ORIGINE') {
-          headerRow = i;
-          isV3Format = false;
-          break;
-        }
-      }
-      if (headerRow !== -1) break;
-    }
-
-    if (headerRow === -1) {
-      logLine('WARN', '⚠️ En-têtes non trouvés dans _STRUCTURE (cherché dans les 20 premières lignes)');
+    if (!structData.success) {
+      logLine('WARN', '⚠️ Erreur lecture _STRUCTURE : ' + (structData.error || 'Inconnu'));
       return mapping;
     }
 
-    logLine('INFO', '  ✅ En-tête _STRUCTURE trouvé à la ligne ' + (headerRow + 1) + ' (format: ' + (isV3Format ? 'V3' : 'LEGACY') + ')');
+    logLine('INFO', '  ✅ _STRUCTURE lue avec succès (format: ' + structData.format + ')');
 
-    const headers = data[headerRow];
-
-    if (isV3Format) {
-      // ✅ FORMAT V3 : Type | Nom Classe | Capacité Max | Options (Quotas)
-      let typeCol = -1;
-      let nomCol = -1;
-
-      // Trouver les colonnes avec normalisation
-      for (let j = 0; j < headers.length; j++) {
-        const h = String(headers[j] || '').trim().toUpperCase();
-        if (h === 'TYPE') typeCol = j;
-        if (h === 'NOM CLASSE' || h === 'NOM' || h === 'CLASSE') nomCol = j;
+    // Construire le mapping depuis les données unifiées
+    structData.mappings.forEach(function(m) {
+      if (m.source && m.dest) {
+        mapping[m.source] = m.dest;
       }
-
-      if (typeCol === -1 || nomCol === -1) {
-        logLine('WARN', '⚠️ Colonnes Type ou Nom Classe introuvables dans format V3');
-        return mapping;
-      }
-
-      // Lire les lignes SOURCE et TEST pour construire le mapping
-      const sourceClasses = [];
-      const testClasses = [];
-
-      for (let i = headerRow + 1; i < data.length; i++) {
-        const row = data[i];
-        const type = String(row[typeCol] || '').trim().toUpperCase();
-        const nom = String(row[nomCol] || '').trim();
-
-        if (!nom) continue;
-
-        if (type === 'SOURCE') {
-          sourceClasses.push(nom);
-        } else if (type === 'TEST') {
-          testClasses.push(nom);
-        }
-      }
-
-      // Mapper : 1er SOURCE → 1er TEST, 2ème SOURCE → 2ème TEST, etc.
-      for (let i = 0; i < Math.max(sourceClasses.length, testClasses.length); i++) {
-        if (sourceClasses[i] && testClasses[i]) {
-          mapping[sourceClasses[i]] = testClasses[i];
-        }
-      }
-
-    } else {
-      // FORMAT LEGACY : CLASSE_ORIGINE | CLASSE_DEST | EFFECTIF | OPTIONS
-      const origineCol = headers.indexOf('CLASSE_ORIGINE');
-      const destCol = headers.indexOf('CLASSE_DEST');
-
-      if (origineCol === -1 || destCol === -1) {
-        logLine('WARN', '⚠️ Colonnes CLASSE_ORIGINE ou CLASSE_DEST introuvables');
-        return mapping;
-      }
-
-      // Lire le mapping
-      for (let i = headerRow + 1; i < data.length; i++) {
-        const row = data[i];
-        const origine = String(row[origineCol] || '').trim();
-        const dest = String(row[destCol] || '').trim();
-
-        if (origine && dest) {
-          mapping[origine] = dest;
-        }
-      }
-    }
+    });
 
   } catch (e) {
     logLine('WARN', '⚠️ Erreur lecture mapping depuis _STRUCTURE : ' + e.message);
@@ -327,123 +239,26 @@ function readQuotasFromUI_LEGACY() {
 
 /**
  * Lit les quotas depuis la feuille _STRUCTURE
- * Parse la colonne OPTIONS au format "ITA=6,CHAV=10,ESP=5"
+ * ✅ UTILISE LE MODULE CENTRALISÉ StructureReader.gs
  */
 function readQuotasFromStructure_LEGACY(sheet) {
   const quotas = {};
 
   try {
-    const data = sheet.getDataRange().getValues();
+    // ✅ Utiliser le module centralisé (ignore le paramètre sheet)
+    const structData = readStructure();
 
-    // ✅ Recherche dynamique de l'en-tête (tolère lignes de garde/metadata)
-    let headerRow = -1;
-    let isV3Format = false;
-
-    for (let i = 0; i < Math.min(20, data.length); i++) {
-      const row = data[i];
-      for (let j = 0; j < row.length; j++) {
-        const cell = String(row[j] || '').trim().toUpperCase();
-        // Détecter format V3
-        if (cell === 'TYPE' || cell === 'NOM CLASSE') {
-          headerRow = i;
-          isV3Format = true;
-          break;
-        }
-        // Détecter format LEGACY
-        if (cell === 'CLASSE_DEST' || cell === 'CLASSE_ORIGINE') {
-          headerRow = i;
-          isV3Format = false;
-          break;
-        }
-      }
-      if (headerRow !== -1) break;
-    }
-
-    if (headerRow === -1) {
-      logLine('WARN', '⚠️ En-têtes non trouvés dans _STRUCTURE');
+    if (!structData.success) {
+      logLine('WARN', '⚠️ Erreur lecture quotas depuis _STRUCTURE');
       return quotas;
     }
 
-    const headers = data[headerRow];
-
-    if (isV3Format) {
-      // ✅ FORMAT V3 : Type | Nom Classe | Capacité Max | Options (Quotas)
-      let typeCol = -1;
-      let nomCol = -1;
-      let optionsCol = -1;
-
-      for (let j = 0; j < headers.length; j++) {
-        const h = String(headers[j] || '').trim().toUpperCase();
-        if (h === 'TYPE') typeCol = j;
-        if (h === 'NOM CLASSE' || h === 'NOM' || h === 'CLASSE') nomCol = j;
-        if (h.indexOf('OPTIONS') !== -1 || h.indexOf('QUOTAS') !== -1) optionsCol = j;
+    // Construire les quotas depuis les classes TEST (destinations)
+    structData.tests.forEach(function(test) {
+      if (test.nom && test.options) {
+        quotas[test.nom] = test.options;
       }
-
-      if (nomCol === -1 || optionsCol === -1) {
-        logLine('WARN', '⚠️ Colonnes Nom Classe ou Options introuvables dans format V3');
-        return quotas;
-      }
-
-      // Lire les quotas depuis les lignes TEST (ce sont les classes de destination)
-      for (let i = headerRow + 1; i < data.length; i++) {
-        const row = data[i];
-        const type = String(row[typeCol] || '').trim().toUpperCase();
-        const nom = String(row[nomCol] || '').trim();
-        const optionsStr = String(row[optionsCol] || '').trim();
-
-        if (!nom) continue;
-
-        // ✅ Lire les quotas pour les classes TEST (= destinations)
-        if (type === 'TEST') {
-          quotas[nom] = {};
-
-          // Parser le format "ITA=6,CHAV=10,ESP=5"
-          if (optionsStr) {
-            optionsStr.split(',').forEach(function(pair) {
-              const parts = pair.split('=');
-              if (parts.length === 2) {
-                const optName = parts[0].trim().toUpperCase();
-                const optValue = parseInt(parts[1].trim()) || 0;
-                quotas[nom][optName] = optValue;
-              }
-            });
-          }
-        }
-      }
-
-    } else {
-      // FORMAT LEGACY : CLASSE_ORIGINE | CLASSE_DEST | EFFECTIF | OPTIONS
-      const classeCol = headers.indexOf('CLASSE_DEST');
-      const optionsCol = headers.indexOf('OPTIONS');
-
-      if (classeCol === -1 || optionsCol === -1) {
-        logLine('WARN', '⚠️ Colonnes CLASSE_DEST ou OPTIONS introuvables dans _STRUCTURE');
-        return quotas;
-      }
-
-      // Parcourir les lignes (à partir de headerRow + 1)
-      for (let i = headerRow + 1; i < data.length; i++) {
-        const row = data[i];
-        const classe = String(row[classeCol] || '').trim();
-        if (!classe) continue;
-
-        const optionsStr = String(row[optionsCol] || '').trim();
-
-        quotas[classe] = {};
-
-        // ✅ Parser le format "ITA=6,CHAV=10,ESP=5"
-        if (optionsStr) {
-          optionsStr.split(',').forEach(function(pair) {
-            const parts = pair.split('=');
-            if (parts.length === 2) {
-              const optName = parts[0].trim().toUpperCase();
-              const optValue = parseInt(parts[1].trim()) || 0;
-              quotas[classe][optName] = optValue;
-            }
-          });
-        }
-      }
-    }
+    });
 
   } catch (e) {
     logLine('WARN', '⚠️ Erreur lecture quotas depuis _STRUCTURE : ' + e.message);
@@ -472,98 +287,26 @@ function readTargetsFromUI_LEGACY() {
 
 /**
  * Lit les effectifs cibles depuis _STRUCTURE
- * Lit la colonne EFFECTIF pour chaque classe
+ * ✅ UTILISE LE MODULE CENTRALISÉ StructureReader.gs
  */
 function readTargetsFromStructure_LEGACY(sheet) {
   const targets = {};
 
   try {
-    const data = sheet.getDataRange().getValues();
+    // ✅ Utiliser le module centralisé (ignore le paramètre sheet)
+    const structData = readStructure();
 
-    // Recherche dynamique de l'en-tête
-    let headerRow = -1;
-    let isV3Format = false;
-
-    for (let i = 0; i < Math.min(20, data.length); i++) {
-      const row = data[i];
-      for (let j = 0; j < row.length; j++) {
-        const cell = String(row[j] || '').trim().toUpperCase();
-        // Détecter format V3
-        if (cell === 'TYPE' || cell === 'NOM CLASSE') {
-          headerRow = i;
-          isV3Format = true;
-          break;
-        }
-        // Détecter format LEGACY
-        if (cell === 'CLASSE_DEST' || cell === 'CLASSE_ORIGINE') {
-          headerRow = i;
-          isV3Format = false;
-          break;
-        }
-      }
-      if (headerRow !== -1) break;
-    }
-
-    if (headerRow === -1) {
-      logLine('WARN', '⚠️ En-têtes non trouvés dans _STRUCTURE');
+    if (!structData.success) {
+      logLine('WARN', '⚠️ Erreur lecture effectifs depuis _STRUCTURE');
       return targets;
     }
 
-    const headers = data[headerRow];
-
-    if (isV3Format) {
-      // ✅ FORMAT V3 : Type | Nom Classe | Capacité Max | Options (Quotas)
-      let typeCol = -1;
-      let nomCol = -1;
-      let capaciteCol = -1;
-
-      for (let j = 0; j < headers.length; j++) {
-        const h = String(headers[j] || '').trim().toUpperCase();
-        if (h === 'TYPE') typeCol = j;
-        if (h === 'NOM CLASSE' || h === 'NOM' || h === 'CLASSE') nomCol = j;
-        if (h.indexOf('CAPACITÉ') !== -1 || h.indexOf('CAPACITE') !== -1 || h.indexOf('MAX') !== -1) capaciteCol = j;
+    // Construire les effectifs depuis les classes TEST (destinations)
+    structData.tests.forEach(function(test) {
+      if (test.nom && test.capacite) {
+        targets[test.nom] = test.capacite;
       }
-
-      if (nomCol === -1 || capaciteCol === -1) {
-        logLine('WARN', '⚠️ Colonnes Nom Classe ou Capacité introuvables dans format V3');
-        return targets;
-      }
-
-      // Lire les effectifs depuis les lignes TEST (ce sont les classes de destination)
-      for (let i = headerRow + 1; i < data.length; i++) {
-        const row = data[i];
-        const type = String(row[typeCol] || '').trim().toUpperCase();
-        const nom = String(row[nomCol] || '').trim();
-        const capacite = parseInt(row[capaciteCol]) || 25; // Fallback 25
-
-        if (!nom) continue;
-
-        // ✅ Lire les effectifs pour les classes TEST (= destinations)
-        if (type === 'TEST') {
-          targets[nom] = capacite;
-        }
-      }
-
-    } else {
-      // FORMAT LEGACY : CLASSE_ORIGINE | CLASSE_DEST | EFFECTIF | OPTIONS
-      const classeCol = headers.indexOf('CLASSE_DEST');
-      const effectifCol = headers.indexOf('EFFECTIF');
-
-      if (classeCol === -1 || effectifCol === -1) {
-        logLine('WARN', '⚠️ Colonnes CLASSE_DEST ou EFFECTIF introuvables dans _STRUCTURE');
-        return targets;
-      }
-
-      // Parcourir les lignes
-      for (let i = headerRow + 1; i < data.length; i++) {
-        const row = data[i];
-        const classe = String(row[classeCol] || '').trim();
-        if (!classe) continue;
-
-        const effectif = parseInt(row[effectifCol]) || 25; // Fallback 25
-        targets[classe] = effectif;
-      }
-    }
+    });
 
   } catch (e) {
     logLine('WARN', '⚠️ Erreur lecture effectifs depuis _STRUCTURE : ' + e.message);

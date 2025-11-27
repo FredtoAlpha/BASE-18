@@ -10,114 +10,61 @@ function ouvrirConfigurationStructure() {
 /**
  * Charge la structure depuis l'onglet _STRUCTURE
  * Version universelle qui accepte TOUTES les options
+ * ✅ UTILISE LE MODULE CENTRALISÉ StructureReader.gs
  * @return {Object} Structure des classes
  */
 function chargerStructure() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const structureSheet = ss.getSheetByName("_STRUCTURE");
-  
-  if (!structureSheet) {
-    Logger.log("L'onglet _STRUCTURE est introuvable");
-    return { classes: [] };
-  }
-  
-  // Récupérer toutes les données
-  const data = structureSheet.getDataRange().getValues();
-  if (data.length <= 1) {
-    Logger.log("Structure vide");
-    return { classes: [] };
-  }
-  
-  const headers = data[0];
-  Logger.log("En-têtes de _STRUCTURE: " + headers.join(", "));
-  
-  // Trouver les indices des colonnes importantes
-  const origineIndex = headers.indexOf("CLASSE_ORIGINE");
-  const destIndex = headers.indexOf("CLASSE_DEST"); 
-  const effectifIndex = headers.indexOf("EFFECTIF");
-  const optionsIndex = headers.indexOf("OPTIONS");
-  
-  Logger.log(`Indices trouvés: Origine=${origineIndex}, Destination=${destIndex}, Effectif=${effectifIndex}, Options=${optionsIndex}`);
-  
-  if (origineIndex === -1 || effectifIndex === -1 || optionsIndex === -1) {
-    Logger.log("Colonnes manquantes dans _STRUCTURE");
-    return { classes: [] };
-  }
-  
-  // Créer la structure
-  const structure = { classes: [] };
-  
-  // Parcourir les lignes (en sautant l'en-tête)
-  for (let i = 1; i < data.length; i++) {
-    const row = data[i];
-    // Ignorer les lignes vides
-    if (!row[origineIndex] && !row[destIndex]) continue;
-    
-    const origine = row[origineIndex] || "";
-    const destination = row[destIndex] || "";
-    const effectif = parseInt(row[effectifIndex]) || 28;
-    const optionsString = String(row[optionsIndex] || "");
-    
-    Logger.log(`Ligne ${i}: Origine="${origine}", Destination="${destination}", Effectif=${effectif}, Options="${optionsString}"`);
-    
-    // Analyser les options (accepte "=" et ":" comme séparateurs)
-    const options = [];
-    if (optionsString.trim() !== "") {
-      const optionsParts = optionsString.split(",");
-      
-      for (const part of optionsParts) {
-        // Trouver le séparateur (= ou :)
-        let nomOption, quotaStr;
-        
-        if (part.includes("=")) {
-          [nomOption, quotaStr] = part.split("=", 2);
-        } else if (part.includes(":")) {
-          [nomOption, quotaStr] = part.split(":", 2);
-        } else {
-          nomOption = part.trim();
-          quotaStr = "0";
-        }
-        
-        // Nettoyage et validation
-        nomOption = (nomOption || "").trim();
-        quotaStr = (quotaStr || "0").trim();
-        
-        if (nomOption) {
-          const option = { 
-            nom: nomOption,
-            quota: parseInt(quotaStr) || 0
-          };
-          options.push(option);
-          Logger.log(`  Option trouvée: "${option.nom}" = ${option.quota}`);
-        }
-      }
+  try {
+    // ✅ Utiliser le module centralisé
+    const structData = readStructure();
+
+    if (!structData.success) {
+      Logger.log("Erreur lecture _STRUCTURE: " + (structData.error || 'Inconnu'));
+      return { classes: [], options: [] };
     }
-    
-    // Ajouter la classe à la structure
-    structure.classes.push({
-      origine: origine,
-      destination: destination,
-      effectif: effectif,
+
+    Logger.log(`Structure chargée (format ${structData.format}): ${structData.mappings.length} mappings`);
+
+    // Convertir au format attendu par les anciennes fonctions
+    const classes = structData.mappings.map(function(m) {
+      // Convertir options object → array d'objets {nom, quota}
+      const optionsArray = [];
+      for (const key in m.options) {
+        optionsArray.push({
+          nom: key,
+          quota: m.options[key]
+        });
+      }
+
+      return {
+        origine: m.source,
+        destination: m.dest,
+        effectif: m.effectif,
+        options: optionsArray
+      };
+    });
+
+    // Récapitulatif pour vérification
+    Logger.log(`Structure chargée: ${classes.length} classes`);
+    classes.forEach((classe, index) => {
+      Logger.log(`Classe ${index+1}: ${classe.origine} → ${classe.destination} (${classe.effectif} élèves)`);
+      classe.options.forEach(opt => {
+        Logger.log(`  - Option ${opt.nom} = ${opt.quota}`);
+      });
+    });
+
+    // Récupérer la liste des options disponibles
+    const options = getAllOptions(classes);
+
+    return {
+      classes: classes,
       options: options
-    });
+    };
+
+  } catch (e) {
+    Logger.log("Erreur chargerStructure: " + e.message);
+    return { classes: [], options: [] };
   }
-  
-  // Récapitulatif pour vérification
-  Logger.log(`Structure chargée: ${structure.classes.length} classes`);
-  structure.classes.forEach((classe, index) => {
-    Logger.log(`Classe ${index+1}: ${classe.origine} → ${classe.destination} (${classe.effectif} élèves)`);
-    classe.options.forEach(opt => {
-      Logger.log(`  - Option ${opt.nom} = ${opt.quota}`);
-    });
-  });
-  
-  // Récupérer la liste des options disponibles
-  const options = getAllOptions(structure.classes);
-  
-  return { 
-    classes: structure.classes,
-    options: options
-  };
 }
 
 /**
