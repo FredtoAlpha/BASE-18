@@ -1881,28 +1881,11 @@ const OptimizationPanel = {
       console.log('📝 Écriture dans _STRUCTURE (référence)...');
       setStreamingStatus('📝 Mise à jour de _STRUCTURE...', 'Synchronisation...');
       
-      // ✅ CORRECTION CRITIQUE : Convertir le format des quotas
-      // De: { "6°1": { "ITA": 6, "CHAV": 10 } }
-      // Vers: { "6°1": { LV2: ["ITA"], OPT: ["CHAV"] } }
-      const optionsByClass = {};
-      Object.keys(config.quotas || {}).forEach(cls => {
-        const quotas = config.quotas[cls] || {};
-        optionsByClass[cls] = { LV2: [], OPT: [] };
-        
-        Object.keys(quotas).forEach(option => {
-          const optUpper = option.toUpperCase();
-          // Classifier en LV2 ou OPT
-          if (optUpper === 'CHAV' || optUpper === 'LAT' || optUpper === 'GRE' || optUpper === 'LATIN') {
-            optionsByClass[cls].OPT.push(optUpper);
-          } else {
-            optionsByClass[cls].LV2.push(optUpper);
-          }
-        });
-      });
-      
-      console.log('📊 Format converti pour setStructureOptionsFromUI:', optionsByClass);
-      
-      const structureWriteResult = await gs('setStructureOptionsFromUI', optionsByClass);
+      // ✅ ENVOI DES QUOTAS COMPLETS (avec valeurs)
+      // Format: { "6°1": { "ITA": 6, "CHAV": 10 } }
+      console.log('📊 Quotas à synchroniser dans _STRUCTURE:', config.quotas);
+
+      const structureWriteResult = await gs('setStructureOptionsFromUI', config.quotas);
       if (!structureWriteResult.success) {
         const errorMsg = '❌ Échec de la mise à jour de _STRUCTURE : ' + (structureWriteResult.error || 'Erreur inconnue');
         console.error(errorMsg);
@@ -2183,24 +2166,11 @@ const OptimizationPanel = {
         weights: poidsOverride                 // Poids des critères
       };
 
-      // Construire la configuration options → classes (sans filtrage agressif)
-      const optionsByClass = {};
-      if (this.classOptionsConfig) {
-        Object.keys(this.classOptionsConfig).forEach((cls) => {
-          const v = this.classOptionsConfig[cls] || {};
-          optionsByClass[cls] = {
-            LV2: Array.isArray(v.LV2) ? v.LV2.slice() : [],
-            OPT: Array.isArray(v.OPT) ? v.OPT.slice() : []
-          };
-        });
-      }
-
-      const hasAnyOption = Object.values(optionsByClass).some((cfg) => {
-        if (!cfg) return false;
-        const lv2 = Array.isArray(cfg.LV2) ? cfg.LV2 : [];
-        const opt = Array.isArray(cfg.OPT) ? cfg.OPT : [];
-        return lv2.length > 0 || opt.length > 0;
+      // ✅ Vérifier qu'au moins une option est configurée
+      const hasAnyOption = this.classOptionsConfig && Object.values(this.classOptionsConfig).some((quotas) => {
+        return quotas && Object.keys(quotas).length > 0;
       });
+
       if (!hasAnyOption) {
         if (typeof toast === 'function') {
           toast('⚠️ Configurez au moins une option/LV2 pour une classe.', 'warning');
@@ -2209,8 +2179,8 @@ const OptimizationPanel = {
         return;
       }
 
-      console.log('📤 Envoi de optionsByClass vers le serveur:', JSON.stringify(optionsByClass));
-      console.log('🔍 Détail optionsByClass:', optionsByClass);
+      console.log('📤 Envoi des quotas vers le serveur:', JSON.stringify(this.classOptionsConfig));
+      console.log('🔍 Détail quotas:', this.classOptionsConfig);
 
       // ✅ VÉRIFICATION CRITIQUE : Vérifier que setStructureOptionsFromUI existe
       let structureConfigured = false;
@@ -2239,7 +2209,7 @@ const OptimizationPanel = {
                   console.error('❌ setStructureOptionsFromUI échec:', error);
                   reject(error);
                 })
-                .setStructureOptionsFromUI(optionsByClass);
+                .setStructureOptionsFromUI(this.classOptionsConfig);
             } else {
               clearTimeout(timeout);
               console.warn('⚠️ google.script.run non disponible (environnement dev?)');

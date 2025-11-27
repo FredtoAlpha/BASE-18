@@ -179,6 +179,108 @@ function getOptionsDisponibles() {
 }
 
 /**
+ * Met à jour les options dans _STRUCTURE à partir de l'UI OPTI
+ * @param {Object} quotasByClass - Format: { "6°1": { "ITA": 6, "CHAV": 10 } }
+ * @return {Object} Résultat de l'opération
+ */
+function setStructureOptionsFromUI(quotasByClass) {
+  try {
+    Logger.log('🔄 setStructureOptionsFromUI: Début de la mise à jour');
+    Logger.log('Données reçues: ' + JSON.stringify(quotasByClass));
+
+    // 1. Charger la structure existante depuis _STRUCTURE
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const structureSheet = ss.getSheetByName("_STRUCTURE");
+
+    if (!structureSheet) {
+      return { success: false, error: "Onglet _STRUCTURE introuvable" };
+    }
+
+    // 2. Lire toutes les données existantes
+    const data = structureSheet.getDataRange().getValues();
+    if (data.length <= 1) {
+      return { success: false, error: "Structure vide" };
+    }
+
+    const headers = data[0];
+    const origineIndex = headers.indexOf("CLASSE_ORIGINE");
+    const destIndex = headers.indexOf("CLASSE_DEST");
+    const effectifIndex = headers.indexOf("EFFECTIF");
+    const optionsIndex = headers.indexOf("OPTIONS");
+
+    if (origineIndex === -1 || destIndex === -1 || effectifIndex === -1 || optionsIndex === -1) {
+      return { success: false, error: "Colonnes manquantes dans _STRUCTURE" };
+    }
+
+    // 3. Construire un Map pour accès rapide par classe destination
+    const classeMap = new Map();
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const dest = String(row[destIndex] || "").trim();
+      if (dest) {
+        classeMap.set(dest, i);
+      }
+    }
+
+    // 4. Préparer les mises à jour
+    const updates = [];
+    let nbUpdates = 0;
+    let totalOptions = 0;
+
+    for (const [classe, quotas] of Object.entries(quotasByClass)) {
+      const rowIndex = classeMap.get(classe);
+
+      if (rowIndex !== undefined) {
+        // Formater les quotas en chaîne (OPTION1=quota1,OPTION2=quota2,...)
+        const optionsArray = [];
+        for (const [option, quota] of Object.entries(quotas)) {
+          const optionName = String(option).toUpperCase().trim();
+          const quotaValue = parseInt(quota) || 0;
+          optionsArray.push(`${optionName}=${quotaValue}`);
+          totalOptions++;
+        }
+
+        const optionsStr = optionsArray.join(",");
+
+        // Enregistrer la mise à jour
+        updates.push({
+          rowIndex: rowIndex,
+          classe: classe,
+          optionsStr: optionsStr
+        });
+
+        Logger.log(`Classe ${classe} (ligne ${rowIndex + 1}): ${optionsStr}`);
+        nbUpdates++;
+      } else {
+        Logger.log(`⚠️ Classe ${classe} introuvable dans _STRUCTURE`);
+      }
+    }
+
+    // 5. Appliquer toutes les mises à jour
+    for (const update of updates) {
+      const rowNum = update.rowIndex + 1; // +1 pour passer de 0-indexed à 1-indexed
+      structureSheet.getRange(rowNum, optionsIndex + 1).setValue(update.optionsStr);
+    }
+
+    Logger.log(`✅ ${nbUpdates} classes mises à jour dans _STRUCTURE (${totalOptions} options)`);
+
+    return {
+      success: true,
+      message: `${nbUpdates} classes mises à jour avec ${totalOptions} options`,
+      nbUpdates: nbUpdates,
+      totalOptions: totalOptions
+    };
+
+  } catch (e) {
+    Logger.log('❌ Erreur setStructureOptionsFromUI: ' + e + '\n' + e.stack);
+    return {
+      success: false,
+      error: 'Erreur: ' + e.toString()
+    };
+  }
+}
+
+/**
  * Sauvegarde la structure des classes dans l'onglet _STRUCTURE
  * Version universelle qui enregistre TOUTES les options
  * @param {Object} structure - La structure à sauvegarder
