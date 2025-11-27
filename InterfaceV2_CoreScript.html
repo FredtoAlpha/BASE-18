@@ -3437,12 +3437,18 @@ window.addEventListener('DOMContentLoaded', (event) => {
 
       // Fonctions d'animation fluide
       function openMenu() {
+        console.log('🎬 openMenu() appelée');
+        console.log('   Classes avant:', adminRoot.className);
         adminRoot.classList.remove('hidden');
+        console.log('   Classes après remove hidden:', adminRoot.className);
         // Force reflow pour que la transition fonctionne
         void adminRoot.offsetWidth;
         requestAnimationFrame(() => {
+          console.log('   Dans requestAnimationFrame');
           adminRoot.classList.remove('opacity-0', 'scale-95');
           adminRoot.classList.add('opacity-100', 'scale-100');
+          console.log('   Classes finales:', adminRoot.className);
+          console.log('   Style final:', adminRoot.style.cssText);
         });
       }
 

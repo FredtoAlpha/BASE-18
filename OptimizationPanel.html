@@ -150,32 +150,87 @@ const OptimizationPanel = {
   /**
    * Ouvrir le panneau d'optimisation
    */
-  open() {
+  async open() {
+    console.log('🎯 Ouverture de l\'assistant d\'optimisation...');
+
+    // ✅ CORRECTION: S'assurer que les données sont chargées AVANT d'ouvrir le panneau
+    const hasData = typeof STATE !== 'undefined' && STATE.students && Object.keys(STATE.students).length > 0;
+    const hasMode = typeof STATE !== 'undefined' && STATE.currentMode;
+
+    console.log('📊 État actuel:', {
+      hasData,
+      hasMode,
+      currentMode: STATE?.currentMode,
+      studentsCount: STATE?.students ? Object.keys(STATE.students).length : 0
+    });
+
+    // Si un mode est sélectionné mais les données ne sont pas chargées, les charger d'abord
+    if (!hasData && hasMode) {
+      console.log(`🔄 Chargement des données ${STATE.currentMode}...`);
+      if (typeof showSpinner === 'function') showSpinner();
+
+      try {
+        // Appeler loadDataForMode pour charger les données
+        if (typeof loadDataForMode === 'function') {
+          const success = await loadDataForMode(STATE.currentMode);
+          if (!success) {
+            console.error('❌ Échec du chargement des données');
+            if (typeof hideSpinner === 'function') hideSpinner();
+            if (typeof toast === 'function') {
+              toast(`❌ Impossible de charger les données ${STATE.currentMode}`, 'error');
+            }
+            return;
+          }
+          console.log(`✅ Données ${STATE.currentMode} chargées avec succès`);
+        } else {
+          console.error('❌ loadDataForMode non disponible');
+          if (typeof hideSpinner === 'function') hideSpinner();
+          if (typeof toast === 'function') {
+            toast('❌ Fonction de chargement non disponible', 'error');
+          }
+          return;
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors du chargement:', error);
+        if (typeof hideSpinner === 'function') hideSpinner();
+        if (typeof toast === 'function') {
+          toast('❌ Erreur lors du chargement des données', 'error');
+        }
+        return;
+      }
+
+      if (typeof hideSpinner === 'function') hideSpinner();
+    }
+
     this.isOpen = true;
-    
+
     // Sauvegarder l'état initial si des données sont chargées
     if (typeof STATE !== 'undefined' && STATE.students && Object.keys(STATE.students).length > 0) {
       this.initialState = this.exportCurrentState();
+      console.log('💾 État initial sauvegardé:', Object.keys(STATE.students).length, 'élèves');
     } else {
       this.initialState = null;
+      console.log('⚠️ Aucune donnée à sauvegarder');
     }
-    
+
     // Créer le panneau s'il n'existe pas
     if (!document.getElementById('optimizationPanel')) {
       this.createPanel();
     }
-    
-    // Charger la configuration
-    this.loadConfiguration();
-    
+
+    // Charger la configuration (ATTENDRE que ce soit terminé avant de continuer)
+    await this.loadConfiguration();
+
     // Initialiser le wizard à la phase 1
     this.currentPhase = 'structure';
     this.validatedPhases = [];
     setTimeout(() => this.goToPhase('structure'), 100);
-    
+
     // Afficher le panneau
     document.getElementById('optimizationPanel').classList.remove('translate-x-full');
     document.getElementById('optimizationOverlay').classList.remove('hidden');
+
+    console.log('✅ Panneau d\'optimisation ouvert');
   },
   
   /**
@@ -430,13 +485,39 @@ const OptimizationPanel = {
                 <i class="fas fa-magic mr-2"></i>2. Distribution automatique des quotas
               </button>
             </div>
-            
+
             <!-- Liste des options détectées -->
             <div id="optionsDetected" class="mb-4 hidden">
               <h4 class="font-bold mb-2">📋 Options/LV2 détectées :</h4>
               <div id="optionsList" class="flex flex-wrap gap-2 mb-4"></div>
             </div>
-            
+
+            <!-- ✅ NOUVEAU : Gestion des doubles contraintes (OPT + LV2) -->
+            <div class="mb-6 border-t pt-4">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="font-bold text-sm">🔗 Doubles contraintes (OPT + LV2)</h4>
+                <button onclick="OptimizationPanel.addDoubleConstraint()" class="btn btn-sm btn-secondary">
+                  <i class="fas fa-plus mr-1"></i>Ajouter
+                </button>
+              </div>
+
+              <div class="bg-purple-50 p-3 rounded mb-3 text-xs text-purple-700">
+                <i class="fas fa-info-circle mr-1"></i>Définissez les combinaisons obligatoires entre options et LV2
+                <div class="mt-2 text-purple-600">
+                  <strong>Exemples :</strong>
+                  <ul class="list-disc list-inside ml-2">
+                    <li>LATIN → ITA obligatoire</li>
+                    <li>CHAV → toute LV2 sauf ESP</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Liste des contraintes -->
+              <div id="doubleConstraintsList" class="space-y-2">
+                <!-- Les contraintes seront ajoutées dynamiquement ici -->
+              </div>
+            </div>
+
             <!-- Configuration par classe -->
             <div id="classOptionsConfig">
               <h4 class="font-bold mb-3">🏫 Configuration par classe</h4>
@@ -633,44 +714,29 @@ const OptimizationPanel = {
    * Obtenir le nombre total d'élèves
    */
   getTotalStudents() {
-    if (typeof STATE === 'undefined' || !STATE || !STATE.students) return 0;
+    if (typeof STATE === 'undefined' || !STATE || !STATE.students) {
+      console.warn('⚠️ STATE.students non disponible');
+      return 0;
+    }
 
     const students = STATE.students;
 
+    // STATE.students est un dictionnaire plat {id: eleve}
+    // Créé dans loadDataForMode() depuis result.data
+    if (typeof students === 'object' && !Array.isArray(students)) {
+      const count = Object.keys(students).length;
+      console.log('📊 Total élèves:', count);
+      return count;
+    }
+
+    // Fallback si STATE.students est un array (cas non standard)
     if (Array.isArray(students)) {
+      console.log('📊 Total élèves (array):', students.length);
       return students.length;
     }
 
-    const values = Object.values(students || {});
-    if (values.length === 0) return 0;
-
-    const looksLikeStudentObj = (value) =>
-      value && typeof value === 'object' && !Array.isArray(value) && (
-        Object.prototype.hasOwnProperty.call(value, 'sexe') ||
-        Object.prototype.hasOwnProperty.call(value, 'nom') ||
-        Object.prototype.hasOwnProperty.call(value, 'id')
-      );
-
-    if (values.every(looksLikeStudentObj)) {
-      return values.length;
-    }
-
-    let total = 0;
-    values.forEach((value) => {
-      if (Array.isArray(value)) {
-        total += value.length;
-        return;
-      }
-
-      if (value && typeof value === 'object') {
-        const innerValues = Object.values(value);
-        if (innerValues.length && innerValues.every(looksLikeStudentObj)) {
-          total += innerValues.length;
-        }
-      }
-    });
-
-    return total;
+    console.warn('⚠️ Format inattendu pour STATE.students');
+    return 0;
   },
   
   /**
@@ -903,7 +969,19 @@ const OptimizationPanel = {
         iconI.classList.add('text-gray-400');
       }
     });
-    
+
+    // ✅ NOUVEAU : Hook spécifique pour la phase "options"
+    if (phaseName === 'options') {
+      // Initialiser les doubles contraintes si nécessaire
+      if (!this.doubleConstraints) {
+        this.doubleConstraints = [];
+      }
+      // Rafraîchir l'affichage des doubles contraintes
+      setTimeout(() => {
+        this.renderDoubleConstraints();
+      }, 100);
+    }
+
     // Afficher le contenu correspondant
     this.switchTab(phaseName === 'launch' ? 'scores' : phaseName);
   },
@@ -1302,7 +1380,180 @@ const OptimizationPanel = {
 
     console.log('📊 Configuration finale:', this.classOptionsConfig);
   },
-  
+
+  /**
+   * ✅ NOUVEAU : Ajouter une double contrainte (OPT + LV2)
+   */
+  addDoubleConstraint() {
+    if (!this.doubleConstraints) {
+      this.doubleConstraints = [];
+    }
+
+    // Créer un modal pour saisir la contrainte
+    const modal = document.createElement('div');
+    modal.id = 'doubleConstraintModal';
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-[200] flex items-center justify-center';
+    modal.innerHTML = `
+      <div class="bg-white rounded-lg shadow-xl p-6 w-[500px]">
+        <h3 class="text-lg font-bold mb-4">🔗 Ajouter une double contrainte</h3>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-2">Option :</label>
+          <input type="text" id="dcOption" placeholder="ex: LATIN, CHAV"
+                 class="w-full px-3 py-2 border rounded">
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-2">Opérateur :</label>
+          <select id="dcOperator" class="w-full px-3 py-2 border rounded">
+            <option value="MUST">doit avoir (→)</option>
+            <option value="MUST_NOT">ne doit PAS avoir (↛)</option>
+          </select>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-2">LV2 :</label>
+          <input type="text" id="dcLV2" placeholder="ex: ITA, ESP"
+                 class="w-full px-3 py-2 border rounded">
+        </div>
+
+        <div class="bg-blue-50 p-3 rounded mb-4 text-xs text-blue-700">
+          <strong>Exemples :</strong>
+          <ul class="list-disc list-inside ml-2 mt-1">
+            <li>LATIN → doit avoir → ITA</li>
+            <li>CHAV → ne doit PAS avoir → ESP</li>
+          </ul>
+        </div>
+
+        <div class="flex gap-2 justify-end">
+          <button onclick="document.getElementById('doubleConstraintModal').remove()"
+                  class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">
+            Annuler
+          </button>
+          <button onclick="OptimizationPanel.saveDoubleConstraint()"
+                  class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">
+            <i class="fas fa-check mr-2"></i>Ajouter
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Focus sur le premier champ
+    setTimeout(() => {
+      document.getElementById('dcOption')?.focus();
+    }, 100);
+  },
+
+  /**
+   * ✅ NOUVEAU : Sauvegarder la double contrainte
+   */
+  saveDoubleConstraint() {
+    const option = document.getElementById('dcOption')?.value.trim().toUpperCase();
+    const operator = document.getElementById('dcOperator')?.value;
+    const lv2 = document.getElementById('dcLV2')?.value.trim().toUpperCase();
+
+    if (!option || !lv2) {
+      if (typeof toast === 'function') {
+        toast('⚠️ Veuillez remplir tous les champs', 'warning');
+      }
+      return;
+    }
+
+    if (!this.doubleConstraints) {
+      this.doubleConstraints = [];
+    }
+
+    // Ajouter la contrainte
+    this.doubleConstraints.push({
+      option: option,
+      operator: operator,
+      lv2: lv2
+    });
+
+    console.log('✅ Contrainte ajoutée:', { option, operator, lv2 });
+
+    // Fermer le modal
+    document.getElementById('doubleConstraintModal')?.remove();
+
+    // Rafraîchir l'affichage
+    this.renderDoubleConstraints();
+
+    if (typeof toast === 'function') {
+      const opText = operator === 'MUST' ? '→' : '↛';
+      toast(`✅ Contrainte ajoutée : ${option} ${opText} ${lv2}`, 'success');
+    }
+  },
+
+  /**
+   * ✅ NOUVEAU : Afficher la liste des doubles contraintes
+   */
+  renderDoubleConstraints() {
+    const container = document.getElementById('doubleConstraintsList');
+    if (!container) return;
+
+    if (!this.doubleConstraints || this.doubleConstraints.length === 0) {
+      container.innerHTML = `
+        <div class="text-sm text-gray-500 text-center py-4">
+          <i class="fas fa-info-circle mr-2"></i>Aucune double contrainte définie
+        </div>
+      `;
+      return;
+    }
+
+    const html = this.doubleConstraints.map((constraint, index) => {
+      const operatorSymbol = constraint.operator === 'MUST' ? '→' : '↛';
+      const operatorColor = constraint.operator === 'MUST' ? 'text-green-600' : 'text-red-600';
+      const operatorBg = constraint.operator === 'MUST' ? 'bg-green-50' : 'bg-red-50';
+      const operatorText = constraint.operator === 'MUST' ? 'doit avoir' : 'ne doit PAS avoir';
+
+      return `
+        <div class="flex items-center gap-2 p-3 ${operatorBg} rounded border">
+          <div class="flex-1 flex items-center gap-2 text-sm">
+            <span class="font-bold text-purple-700">${constraint.option}</span>
+            <span class="${operatorColor} font-bold">${operatorSymbol}</span>
+            <span class="text-gray-600">${operatorText}</span>
+            <span class="font-bold text-blue-700">${constraint.lv2}</span>
+          </div>
+          <button onclick="OptimizationPanel.removeDoubleConstraint(${index})"
+                  class="text-red-600 hover:bg-red-100 p-2 rounded">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = html;
+  },
+
+  /**
+   * ✅ NOUVEAU : Supprimer une double contrainte
+   */
+  removeDoubleConstraint(index) {
+    if (!this.doubleConstraints || index < 0 || index >= this.doubleConstraints.length) {
+      return;
+    }
+
+    const removed = this.doubleConstraints[index];
+    this.doubleConstraints.splice(index, 1);
+
+    console.log('🗑️ Contrainte supprimée:', removed);
+
+    this.renderDoubleConstraints();
+
+    if (typeof toast === 'function') {
+      toast(`🗑️ Contrainte supprimée`, 'info');
+    }
+  },
+
+  /**
+   * ✅ NOUVEAU : Récupérer les doubles contraintes pour l'optimisation
+   */
+  getDoubleConstraints() {
+    return this.doubleConstraints || [];
+  },
+
   /**
    * Créer le tableau de configuration par classe (QUOTAS)
    * ✅ VERSION AUTONOME PIPELINE OPTI : Configuration des quotas par classe
