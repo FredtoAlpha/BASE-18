@@ -492,6 +492,12 @@ const OptimizationPanel = {
               <div id="doubleConstraintsBadges" class="flex flex-wrap gap-2"></div>
             </div>
 
+            <!-- 🆕 COMPTEUR DE QUOTAS RESTANTS -->
+            <div id="remainingQuotasDisplay" class="mb-4 hidden">
+              <h4 class="font-bold mb-2 text-sm">📊 Quotas restants à placer :</h4>
+              <div id="remainingQuotasBadges" class="flex flex-wrap gap-2"></div>
+            </div>
+
             <!-- Distribution automatique des quotas -->
             <div class="mb-4" id="autoDistributeSection" style="display:none;">
               <button onclick="OptimizationPanel.autoDistributeQuotas()" class="btn btn-success w-full">
@@ -1285,6 +1291,109 @@ const OptimizationPanel = {
   },
 
   /**
+   * 🆕 NOUVEAU : Afficher les compteurs de quotas restants
+   * Calcule combien d'élèves restent à placer pour chaque option
+   */
+  updateRemainingQuotas() {
+    const remainingDisplay = document.getElementById('remainingQuotasDisplay');
+    const remainingBadgesContainer = document.getElementById('remainingQuotasBadges');
+
+    if (!remainingDisplay || !remainingBadgesContainer) return;
+
+    // Calculer les totaux placés par option
+    const placedCounts = {};
+
+    // Parcourir toutes les classes et leurs quotas
+    if (this.classOptionsConfig) {
+      Object.values(this.classOptionsConfig).forEach(classConfig => {
+        if (classConfig && typeof classConfig === 'object') {
+          Object.entries(classConfig).forEach(([option, quota]) => {
+            if (typeof quota === 'number') {
+              placedCounts[option] = (placedCounts[option] || 0) + quota;
+            }
+          });
+        }
+      });
+    }
+
+    // Combiner LV2 et OPT
+    const allOptions = [...(this.detectedLV2 || []), ...(this.detectedOPT || [])];
+
+    if (allOptions.length === 0) {
+      remainingDisplay.classList.add('hidden');
+      return;
+    }
+
+    // Calculer les restants pour chaque option
+    const remainingStats = allOptions.map(option => {
+      const total = (this.lv2Counts && this.lv2Counts[option]) ||
+                    (this.optCounts && this.optCounts[option]) || 0;
+      const placed = placedCounts[option] || 0;
+      const remaining = total - placed;
+
+      // Déterminer le type (LV2 ou OPT)
+      const isLV2 = this.detectedLV2 && this.detectedLV2.includes(option);
+
+      return {
+        option,
+        total,
+        placed,
+        remaining,
+        isLV2,
+        percentPlaced: total > 0 ? (placed / total) * 100 : 0
+      };
+    }).filter(stat => stat.total > 0); // Filtrer les options sans élèves
+
+    // Trier par nombre restant (ceux qui ont le plus besoin d'être placés en premier)
+    remainingStats.sort((a, b) => b.remaining - a.remaining);
+
+    // Générer les badges avec codes couleur
+    const badges = remainingStats.map(stat => {
+      let colorClass, icon;
+
+      if (stat.remaining < 0) {
+        // ❌ DÉPASSEMENT - Rouge
+        colorClass = 'bg-red-100 text-red-800 border-red-400';
+        icon = '❌';
+      } else if (stat.remaining === 0) {
+        // ✅ COMPLET - Vert foncé
+        colorClass = 'bg-green-100 text-green-800 border-green-400';
+        icon = '✅';
+      } else if (stat.percentPlaced >= 80) {
+        // ⚠️ PRESQUE COMPLET - Orange
+        colorClass = 'bg-orange-100 text-orange-800 border-orange-400';
+        icon = '⚠️';
+      } else if (stat.percentPlaced >= 50) {
+        // 🔵 EN COURS - Bleu
+        colorClass = 'bg-blue-100 text-blue-800 border-blue-400';
+        icon = '🔵';
+      } else {
+        // ⭕ DISPONIBLE - Gris
+        colorClass = 'bg-gray-100 text-gray-800 border-gray-400';
+        icon = '⭕';
+      }
+
+      const remainingText = stat.remaining < 0
+        ? `DÉPASSEMENT de ${Math.abs(stat.remaining)}`
+        : `${stat.remaining} restant${stat.remaining > 1 ? 's' : ''}`;
+
+      return `<span class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold border ${colorClass}" title="${stat.placed} placé(s) sur ${stat.total}">
+        ${icon} ${stat.option}: ${remainingText} <span class="text-xs ml-1">(${stat.placed}/${stat.total})</span>
+      </span>`;
+    }).join('');
+
+    if (badges) {
+      remainingBadgesContainer.innerHTML = badges;
+      remainingDisplay.classList.remove('hidden');
+
+      // Log pour debug
+      console.log('📊 QUOTAS RESTANTS:', remainingStats);
+    } else {
+      remainingDisplay.classList.add('hidden');
+    }
+  },
+
+  /**
    * ✅ NOUVEAU : Calculer la répartition cible des effectifs par classe
    * Exemple: 121 élèves sur 5 classes → [25, 25, 24, 24, 23]
    */
@@ -1546,6 +1655,9 @@ const OptimizationPanel = {
     });
     html += '</div>';
     table.innerHTML = html;
+
+    // 🆕 Mettre à jour les compteurs de quotas restants
+    this.updateRemainingQuotas();
   },
 
   /**
@@ -1566,6 +1678,9 @@ const OptimizationPanel = {
     }
 
     console.log(`✅ Quota défini: ${clsName} → ${option} = ${quota}`);
+
+    // 🆕 Mettre à jour les compteurs de quotas restants en temps réel
+    this.updateRemainingQuotas();
   },
 
   toggleClassOptionCat(clsName, cat, option, isChecked) {
