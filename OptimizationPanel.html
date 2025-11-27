@@ -486,6 +486,12 @@ const OptimizationPanel = {
               <div id="optionsStatsBadges" class="flex flex-wrap gap-2"></div>
             </div>
 
+            <!-- 🆕 DOUBLES CONTRAINTES (LV2 + OPT) -->
+            <div id="doubleConstraintsDisplay" class="mb-4 hidden">
+              <h4 class="font-bold mb-2 text-sm">🔥 Doubles contraintes (LV2 + Option) :</h4>
+              <div id="doubleConstraintsBadges" class="flex flex-wrap gap-2"></div>
+            </div>
+
             <!-- Distribution automatique des quotas -->
             <div class="mb-4" id="autoDistributeSection" style="display:none;">
               <button onclick="OptimizationPanel.autoDistributeQuotas()" class="btn btn-success w-full">
@@ -1111,6 +1117,7 @@ const OptimizationPanel = {
     // ✅ NOUVEAU : Compter les élèves par option/LV2
     const lv2Counts = {};
     const optCounts = {};
+    const doubleCounts = {}; // 🆕 Comptage des doubles contraintes
 
     allStudents.forEach((student) => {
       if (!student || typeof student !== 'object') return;
@@ -1131,20 +1138,31 @@ const OptimizationPanel = {
         optCounts[optUpper] = (optCounts[optUpper] || 0) + 1;
         console.log('✅ Found OPT:', opt);
       }
+
+      // 🆕 DÉTECTER LES DOUBLES CONTRAINTES (LV2 + OPT)
+      if (lv2 && opt) {
+        const lv2Upper = lv2.toUpperCase();
+        const optUpper = opt.toUpperCase();
+        const combinedKey = `${lv2Upper}+${optUpper}`;
+        doubleCounts[combinedKey] = (doubleCounts[combinedKey] || 0) + 1;
+        console.log('🔥 DOUBLE CONTRAINTE DÉTECTÉE:', combinedKey);
+      }
     });
 
     this.detectedLV2 = Array.from(lv2Set).filter(Boolean).sort();
     this.detectedOPT = Array.from(optSet).filter(Boolean).sort();
     this.detectedOptions = [...this.detectedLV2, ...this.detectedOPT];
-    
+
     // ✅ Sauvegarder les comptages
     this.lv2Counts = lv2Counts;
     this.optCounts = optCounts;
+    this.doubleCounts = doubleCounts; // 🆕 Sauvegarder les doubles contraintes
 
     console.log('📊 Final detection results:', {
       LV2: this.detectedLV2,
       OPT: this.detectedOPT,
-      total: this.detectedOptions.length
+      total: this.detectedOptions.length,
+      '🔥 DOUBLES CONTRAINTES': this.doubleCounts
     });
 
     const optionsList = document.getElementById('optionsList');
@@ -1171,7 +1189,9 @@ const OptimizationPanel = {
     this.createClassOptionsTable();
 
     if (typeof toast === 'function') {
-      toast(`✅ ${this.detectedOptions.length} option(s) détectée(s) (LV2: ${this.detectedLV2.length}, OPT: ${this.detectedOPT.length})`, 'success');
+      const doubleCount = Object.keys(this.doubleCounts || {}).length;
+      const doubleMsg = doubleCount > 0 ? `, 🔥 ${doubleCount} double(s) contrainte(s)` : '';
+      toast(`✅ ${this.detectedOptions.length} option(s) détectée(s) (LV2: ${this.detectedLV2.length}, OPT: ${this.detectedOPT.length}${doubleMsg})`, 'success');
     }
   },
 
@@ -1182,43 +1202,85 @@ const OptimizationPanel = {
   displayOptionsStats() {
     const statsDisplay = document.getElementById('optionsStatsDisplay');
     const badgesContainer = document.getElementById('optionsStatsBadges');
-    
+
     if (!statsDisplay || !badgesContainer) return;
-    
+
     // Combiner LV2 et OPT avec leurs comptages
     const allStats = [];
-    
+
     // Ajouter les LV2
     this.detectedLV2.forEach(lv2 => {
       const count = this.lv2Counts[lv2] || 0;
       allStats.push({ name: lv2, count: count, type: 'LV2' });
     });
-    
+
     // Ajouter les OPT
     this.detectedOPT.forEach(opt => {
       const count = this.optCounts[opt] || 0;
       allStats.push({ name: opt, count: count, type: 'OPT' });
     });
-    
+
     // Trier par nombre d'élèves (décroissant)
     allStats.sort((a, b) => b.count - a.count);
-    
+
     // Générer les badges
     const badges = allStats.map(stat => {
-      const colorClass = stat.type === 'LV2' 
-        ? 'bg-blue-100 text-blue-800 border-blue-300' 
+      const colorClass = stat.type === 'LV2'
+        ? 'bg-blue-100 text-blue-800 border-blue-300'
         : 'bg-purple-100 text-purple-800 border-purple-300';
-      
+
       return `<span class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold border ${colorClass}">
         ${stat.name}: ${stat.count} élève${stat.count > 1 ? 's' : ''}
       </span>`;
     }).join('');
-    
+
     if (badges) {
       badgesContainer.innerHTML = badges;
       statsDisplay.classList.remove('hidden');
     } else {
       statsDisplay.classList.add('hidden');
+    }
+
+    // 🆕 AFFICHER LES DOUBLES CONTRAINTES
+    this.displayDoubleConstraints();
+  },
+
+  /**
+   * 🆕 NOUVEAU : Afficher les doubles contraintes (LV2 + OPT)
+   * Exemple : [ITA+LATIN: 10 élèves] [ESP+CHAV: 5 élèves]
+   */
+  displayDoubleConstraints() {
+    const doubleDisplay = document.getElementById('doubleConstraintsDisplay');
+    const doubleBadgesContainer = document.getElementById('doubleConstraintsBadges');
+
+    if (!doubleDisplay || !doubleBadgesContainer) return;
+
+    // Vérifier si on a des doubles contraintes
+    if (!this.doubleCounts || Object.keys(this.doubleCounts).length === 0) {
+      doubleDisplay.classList.add('hidden');
+      return;
+    }
+
+    // Convertir en tableau et trier par nombre d'élèves (décroissant)
+    const doubleStats = Object.entries(this.doubleCounts)
+      .map(([combo, count]) => ({ combo, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Générer les badges pour les doubles contraintes
+    const doubleBadges = doubleStats.map(stat => {
+      return `<span class="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold border bg-orange-100 text-orange-800 border-orange-300">
+        🔥 ${stat.combo}: ${stat.count} élève${stat.count > 1 ? 's' : ''}
+      </span>`;
+    }).join('');
+
+    if (doubleBadges) {
+      doubleBadgesContainer.innerHTML = doubleBadges;
+      doubleDisplay.classList.remove('hidden');
+
+      // 🆕 Afficher aussi dans la console pour debug
+      console.log('🔥 DOUBLES CONTRAINTES DÉTECTÉES:', doubleStats);
+    } else {
+      doubleDisplay.classList.add('hidden');
     }
   },
 
