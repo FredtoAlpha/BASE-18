@@ -616,10 +616,10 @@ function v3_getStructureInfo() {
 /**
  * Récupère les données pour l'éditeur de structure intégré (Phase 4)
  * Avec pré-remplissage intelligent des quotas depuis les STATS
+ * ✅ UTILISE LE MODULE CENTRALISÉ StructureReader.gs
  */
 function v3_getStructureDataForEditor() {
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
     const config = getConfig(); // Lit _CONFIG pour avoir les options/LV2 définies en Phase 1
 
     // Lire LV2 et OPT depuis les bonnes propriétés
@@ -641,53 +641,36 @@ function v3_getStructureDataForEditor() {
     const optStats = stats.success ? stats.options : {};
     const comboStats = stats.success ? stats.combos : {};
 
-    // 3. Tenter de lire la structure existante dans _STRUCTURE
-    const structureSheet = ss.getSheetByName('_STRUCTURE');
+    // 3. ✅ Lire la structure avec le module centralisé
+    const structData = readStructure();
     let classesGenerated = [];
     let loadedFromSheet = false;
 
-    if (structureSheet && structureSheet.getLastRow() > 1) {
-      const data = structureSheet.getRange(2, 1, structureSheet.getLastRow() - 1, 4).getValues();
-      // Format attendu: [Type, Nom, Capacité, OptionsString]
+    if (structData.success && structData.tests.length > 0) {
+      // Utiliser les classes TEST du module centralisé
+      structData.tests.forEach(function(test) {
+        const quotas = {};
+        // Initialiser toutes les options possibles à 0
+        [...lv2List, ...optList].forEach(k => quotas[k] = 0);
 
-      data.forEach(row => {
-        // FILTRE : On ne veut QUE les classes de type "TEST" pour l'éditeur
-        // Les types peuvent être "SOURCE", "TEST", "DEF"
-        const type = String(row[0]).trim().toUpperCase();
-
-        if (type === "TEST" && row[1] && String(row[1]).trim() !== "") { // Si Type est TEST et Nom existe
-          const quotas = {};
-          // Initialiser toutes les options possibles à 0
-          [...lv2List, ...optList].forEach(k => quotas[k] = 0);
-
-          // Parser la string d'options (ex: "ITA=5,LATIN=2")
-          if (row[3]) {
-            const parts = String(row[3]).split(',');
-            parts.forEach(p => {
-              const [k, v] = p.split('=');
-              if (k && v) {
-                const keyClean = k.trim().toUpperCase();
-                // On ne garde que si c'est une LV2 ou OPTION valide (pas les combos)
-                if (lv2List.includes(keyClean) || optList.includes(keyClean)) {
-                  // Additionner les valeurs si la clé existe déjà (gestion des doublons)
-                  quotas[keyClean] = (quotas[keyClean] || 0) + (parseInt(v) || 0);
-                }
-              }
-            });
+        // Copier les quotas existants
+        if (test.options) {
+          for (const key in test.options) {
+            if (lv2List.includes(key) || optList.includes(key)) {
+              quotas[key] = test.options[key];
+            }
           }
-
-          classesGenerated.push({
-            name: row[1],
-            capacity: parseInt(row[2]) || 30,
-            quotas: quotas
-          });
         }
+
+        classesGenerated.push({
+          name: test.nom,
+          capacity: test.capacite || 30,
+          quotas: quotas
+        });
       });
 
-      if (classesGenerated.length > 0) {
-        loadedFromSheet = true;
-        Logger.log(`✅ Structure chargée depuis _STRUCTURE (${classesGenerated.length} classes TEST)`);
-      }
+      loadedFromSheet = true;
+      Logger.log(`✅ Structure chargée depuis _STRUCTURE (${classesGenerated.length} classes TEST)`);
     }
 
     // 4. Si rien chargé depuis _STRUCTURE, générer le squelette par défaut via Config
@@ -1000,117 +983,72 @@ function v3_resetSessionState() {
 /**
  * Sauvegarde _STRUCTURE (format V3) vers _STRUCTURE_V3_BACKUP
  * puis convertit _STRUCTURE au format LEGACY pour compatibilité pipeline
- * 
+ * ✅ UTILISE LE MODULE CENTRALISÉ StructureReader.gs
+ *
  * @returns {Object} {success: boolean, error?: string}
  */
 function v3_backupAndConvertStructure() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const structSheet = ss.getSheetByName('_STRUCTURE');
-    
+
     if (!structSheet) {
       return { success: false, error: '_STRUCTURE introuvable' };
     }
-    
-    // 1. BACKUP : copier _STRUCTURE → _STRUCTURE_V3_BACKUP
+
+    // ✅ ÉTAPE 0 : Lire _STRUCTURE avec le module centralisé
+    const structData = readStructure();
+
+    if (!structData.success) {
+      return { success: false, error: structData.error || 'Erreur lecture _STRUCTURE' };
+    }
+
+    Logger.log(`🔍 Format détecté : ${structData.format}`);
+
+    // ✅ Si déjà au format LEGACY, pas besoin de convertir
+    if (structData.format === 'LEGACY') {
+      Logger.log('✅ _STRUCTURE déjà au format LEGACY, conversion ignorée');
+      return { success: true, convertedRows: structData.mappings.length, skipped: true };
+    }
+
+    // ✅ ÉTAPE 1 : BACKUP du format V3
     const backupSheet = ss.getSheetByName('_STRUCTURE_V3_BACKUP');
     if (backupSheet) {
       ss.deleteSheet(backupSheet);
     }
-    
+
     const newBackup = structSheet.copyTo(ss);
     newBackup.setName('_STRUCTURE_V3_BACKUP');
     Logger.log('✅ Backup créé : _STRUCTURE_V3_BACKUP');
-    
-    // 2. CONVERSION : lire format V3
-    const data = structSheet.getDataRange().getValues();
-    const headers = data[0];
-    
-    // Trouver les colonnes V3
-    const colType = headers.indexOf('Type');
-    const colNom = headers.indexOf('Nom Classe');
-    const colCapacite = headers.indexOf('Capacité Max');
-    const colOptions = headers.indexOf('Options (Quotas)');
-    
-    if (colType === -1 || colNom === -1 || colCapacite === -1 || colOptions === -1) {
-      return { success: false, error: 'Format V3 invalide dans _STRUCTURE' };
-    }
-    
-    // 3. RÉÉCRIRE avec format LEGACY pur (4 colonnes essentielles)
+
+    // ✅ ÉTAPE 2 : CONVERSION V3 → LEGACY en utilisant les données déjà parsées
     structSheet.clear();
-    
-    // En-têtes LEGACY (format minimal attendu par LEGACY)
+
+    // En-têtes LEGACY
     const legacyHeaders = ['CLASSE_ORIGINE', 'CLASSE_DEST', 'EFFECTIF', 'OPTIONS'];
     structSheet.appendRow(legacyHeaders);
     structSheet.getRange(1, 1, 1, legacyHeaders.length).setFontWeight('bold').setBackground('#4a86e8');
-    
-    // Séparer les lignes par type
-    const sourceRows = [];
-    const testRows = [];
-    
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      const type = String(row[colType] || '').trim().toUpperCase();
-      let nom = String(row[colNom] || '').trim();
-      const capacite = parseInt(row[colCapacite]) || 0;
-      const options = String(row[colOptions] || '').trim();
-      
-      if (!nom) continue;
-      
-      // ✅ CRITIQUE : Enlever les suffixes TEST/DEF/etc. car le pipeline les ajoute automatiquement
-      nom = nom.replace(/\s*(TEST|DEF|FIN|CACHE)\s*$/i, '').trim();
-      
-      if (type === 'SOURCE') {
-        sourceRows.push({ nom, capacite, options });
-      } else if (type === 'TEST') {
-        testRows.push({ nom, capacite, options });
-      }
-      // Les DEF ne sont PAS inclus dans _STRUCTURE au format LEGACY
-    }
-    
-    // Construire les lignes LEGACY : SEULEMENT les mappings SOURCE → TEST
+
+    // Utiliser les mappings déjà construits par readStructure()
     const convertedRows = [];
-    
-    const maxMappings = Math.max(sourceRows.length, testRows.length);
-    for (let i = 0; i < maxMappings; i++) {
-      const source = sourceRows[i];
-      const test = testRows[i];
-      
-      if (source && test) {
-        // Mapping complet : SOURCE → TEST
-        convertedRows.push([
-          source.nom,      // CLASSE_ORIGINE
-          test.nom,        // CLASSE_DEST
-          test.capacite,   // EFFECTIF
-          test.options     // OPTIONS
-        ]);
-      } else if (source) {
-        // Source sans test correspondant
-        convertedRows.push([
-          source.nom,
-          '',
-          0,
-          ''
-        ]);
-      } else if (test) {
-        // Test sans source (rare)
-        convertedRows.push([
-          '',
-          test.nom,
-          test.capacite,
-          test.options
-        ]);
-      }
-    }
-    
+
+    structData.mappings.forEach(function(m) {
+      convertedRows.push([
+        m.source || '',      // CLASSE_ORIGINE
+        m.dest || '',        // CLASSE_DEST
+        m.effectif || 28,    // EFFECTIF
+        m.optionsStr || ''   // OPTIONS
+      ]);
+    });
+
     if (convertedRows.length > 0) {
       structSheet.getRange(2, 1, convertedRows.length, legacyHeaders.length).setValues(convertedRows);
     }
-    
+
     Logger.log(`✅ _STRUCTURE convertie au format LEGACY (${convertedRows.length} mappings SOURCE→DEST)`);
-    
+
     return { success: true, convertedRows: convertedRows.length };
-    
+
   } catch (e) {
     Logger.log(`❌ Erreur v3_backupAndConvertStructure: ${e.message}`);
     return { success: false, error: e.message };

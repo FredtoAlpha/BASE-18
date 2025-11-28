@@ -111,9 +111,8 @@ function Phase1I_dispatchOptionsLV2_BASEOPTI_V3(ctx) {
   // Sync vers colonnes legacy pour compatibilité audit
   syncClassAssignedToLegacy_('P1');
 
-  // ⚡ OPTIMISATION QUOTA : Ne pas copier vers CACHE en Phase 1 (économiser les appels API)
-  // La copie se fera en Phase 4 finale
-  // copyBaseoptiToCache_V3(ctx);
+  // 🔄 COPIE VERS CACHE : Remplir les onglets CACHE après Phase 1 pour affichage UI
+  copyBaseoptiToCache_V3(ctx);
 
   // ✅ CALCUL MOBILITÉ : Déterminer FIXE/PERMUT/LIBRE après Phase 1
   if (typeof computeMobilityFlags_ === 'function') {
@@ -288,9 +287,8 @@ function Phase2I_applyDissoAsso_BASEOPTI_V3(ctx) {
   // Sync vers colonnes legacy pour compatibilité audit
   syncClassAssignedToLegacy_('P2');
 
-  // ⚡ OPTIMISATION QUOTA : Ne pas copier vers CACHE en Phase 2 (économiser les appels API)
-  // La copie se fera en Phase 4 finale
-  // copyBaseoptiToCache_V3(ctx);
+  // 🔄 COPIE VERS CACHE : Remplir les onglets CACHE après Phase 2 pour affichage UI
+  copyBaseoptiToCache_V3(ctx);
 
   // ✅ CALCUL MOBILITÉ : Recalculer après Phase 2 (codes A/D peuvent changer les contraintes)
   if (typeof computeMobilityFlags_ === 'function') {
@@ -778,7 +776,12 @@ function Phase3I_completeAndParity_BASEOPTI_V3(ctx) {
   }
 
   // Appeler directement la fonction modulaire avec le contexte
-  return Phase3I_completeAndParity_PariteAdaptive_V3(ctx);
+  const result = Phase3I_completeAndParity_PariteAdaptive_V3(ctx);
+
+  // 🔄 COPIE VERS CACHE : Remplir les onglets CACHE après Phase 3 pour affichage UI
+  copyBaseoptiToCache_V3(ctx);
+
+  return result;
 }
 
 function logParityDecision(cls, details) {
