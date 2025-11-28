@@ -99,6 +99,26 @@ function writeObjects_(sh, headers, rows) {
   sh.getRange(2, 1, out.length, headers.length).setValues(out);
 }
 
+/**
+ * Récupère les règles de structure (_STRUCTURE) avec capacités et quotas
+ * Wrapper pour loadStructureRules() de Code.gs pour compatibilité BASEOPTI
+ * @returns {Object} Rules par classe { "5°1": { capacity: 27, quotas: { ESP: 27, CHAV: 10 } }, ... }
+ */
+function getStructureRules() {
+  try {
+    // Appeler la fonction existante de Code.gs
+    if (typeof loadStructureRules === 'function') {
+      return loadStructureRules();
+    }
+
+    logLine('WARN', '⚠️ loadStructureRules() not found, fallback to empty rules');
+    return {};
+  } catch (e) {
+    logLine('ERROR', '❌ getStructureRules() error: ' + e.message);
+    return {};
+  }
+}
+
 // ===================================================================
 // CONSTRUCTION DE _BASEOPTI
 // ===================================================================
